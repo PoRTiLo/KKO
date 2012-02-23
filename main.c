@@ -95,6 +95,7 @@ int main(int argc, char **argv) {
 	if(printLog != false) {
 		fclose(logput);                                                          // uzavreni vystupni zpravy
 	}
-	
+
+	fprintf(stderr,"Jsme na konci!\n");
 	return 0;
 }

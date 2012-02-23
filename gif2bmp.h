@@ -4,13 +4,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <string>
+#include <map>
 
 typedef unsigned char BYTE;	// 1 byte
 typedef unsigned short WORD;	// 2 byte
 typedef unsigned long DWORD;	// 4 byte
 
 
-typedef struct{
+typedef struct {
 	int64_t bmpSize;
 	int64_t long gifSize;
 } tGIF2BMP;
@@ -124,3 +125,4 @@ char isGif(BYTE type[], BYTE version[]);
 unsigned short hexToDec(BYTE num1, BYTE num2);
 void printTPacked(tPACKED packedFields); 
 void printTLoscdes(tLOSCDES logDescription);
+void printGlobalColorTable(std::map<int,tGlobalColorT> colorTable); 
