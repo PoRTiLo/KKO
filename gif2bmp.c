@@ -6,15 +6,15 @@
  * @date 2012-02-23
  */
 #include "gif2bmp.h"
-
-//using namespace std;
+#include <iostream>
+using namespace std;
 
 tGIF2BMP gif2Bmp;
 
 int gif2bmp(tGIF2BMP *gif2bmp, FILE *inputFile, FILE *outputFile) {
 
 	fprintf(stderr, "funguje");
-	openGif(inputFile);
+	pullGif(openGif(inputFile));
 	return 0;
 }
 
@@ -25,112 +25,36 @@ int gif2bmp(tGIF2BMP *gif2bmp, FILE *inputFile, FILE *outputFile) {
  * @param   
  * @return  
  */
-int openGif(FILE *inputFile) {
+vector<int> openGif(FILE *inputFile) {
 
 	fseek(inputFile, 0L, SEEK_END);
 	fprintf(stderr, "velikost soubor:%ld\n",ftell(inputFile));
 	gif2Bmp.gifSize = ftell(inputFile);
 	fseek(inputFile, 0L, SEEK_SET);
 
-	int *data;
-	data = (int *) malloc((ftell(inputFile)+1) * (sizeof(int)));
-	if(data == NULL) {
-		exit(0);
-	}
-	//for(int i = 0;i<2000;i++){
-	//	data[i]='\0';
-	//}
+	vector<int> data;
 	int ch = 0;
-	int i = 0;
 	while((ch = fgetc(inputFile))!=EOF) {
-		data[i]=ch;
-		i++;
+		data.push_back(ch);
 	}
 
-	// naplneni struktury tGIF daty
-	tGIF gif = pullHead(data);
-	return 0;
+	return data;
 }
 
-
-/**
- * Naplneni hlavicky daty
- */
-tGIF pullHead(int data[]) {
-
-	tHEADER header;																													// struktura obsahujici hlavicku gifu
-	// naplneni hlavicky
-	header.signature[0] = data[0];																								// 0x47 G
-	header.signature[1] = data[1];																								// 0x49 I
-	header.signature[2] = data[2];																								// 0x46 F
-	header.version[0] = data[3];																									// 0x38 8
-	header.version[1] = data[4];																									// 0x39 9 nebo 0x37 7
-	header.version[2] = data[5];																									// 0x61 a
-
-	if(isGif(header.signature, header.version ) == 0) {																	// kontrola zdali je spravny soubor
-		fprintf(stderr, "NENI OBRAZEK< DODELAT, uzavreni vsech souboru a vypis hlasky\n");
-		exit(0);
-		//return ;0;
-	}
-
-	tLOSCDES logDescription;																										// struktura obsahujici popisovac logicke obrazovky
-
-	logDescription.screenWidth = hexToDec(data[6], data[7]);																// sirka obrazku v pixelech
-	logDescription.screenHeight = hexToDec(data[8], data[9]);															// vyska obrazku v pixelech
-	logDescription.packedFields.globalColorMap = (data[10] & 128) >> 7;												// 7 bit, 1 =tab. existuje, 0= neexistuje
-	logDescription.packedFields.colorResolutionBits = ((data[10] & 112)  >> 4) + 1;								// 4-6bit, barevna rozlisovaci hodnpta +1
-	logDescription.packedFields.reserved = (data[10] & 8) >> 3;															// 3bit, navesti trideni tabulky barev
-	logDescription.packedFields.pixelBits = (data[10] & 7) + 1;															// 0-2bit, velikost globalni tbulky +1	
-	logDescription.backgroundColorIndex = data[11];																			// index do tabulky barev, pozadi obrazku a ramecek
-	logDescription.pixelAspectRatio = (data[12] + 15) / 64;																// pomer stran obrazku
-
-//-----------------TIKS
-	printTLoscdes(logDescription);
-//-----------------------------------------------
-
-// nacteni dat do globalni tabulky barev
-	int countIndexTable = 1 << logDescription.packedFields.pixelBits;
-	fprintf(stderr, "count=%d\n\n\n",countIndexTable);
-	int sizeTable = 3 * countIndexTable;
-	tGlobalColorT *aGColor;
-	fprintf(stderr,"konec\n");
-	aGColor = (tGlobalColorT *) malloc((countIndexTable+1) * (sizeof(tGlobalColorT )));
-	//aGColor = (tGlobalColorT *) malloc(100 * 3);
-
-	fprintf(stderr,"velikost samo%ld\n",sizeof(tGlobalColorT));
-	fprintf(stderr,"velikost nova%ld\n",sizeof(aGColor));
-	if(aGColor == NULL) {
-		exit(0);
-	}
-
-	fprintf(stderr, "index=%d, size=%d\n",countIndexTable, sizeTable);
-	//map<int, tGlobalColorT> mapGColor;
-	fprintf(stderr,"konec\n");
-	tGlobalColorT globalColor;
-	fprintf(stderr,"konec\n");
-	int pozicion = 13;
-fprintf(stderr, "datapozicion=%d\n",pozicion);
-	for(int i = 0; i < countIndexTable; i++) {
-//fprintf(stderr, "datapozicion=%d\n",data[pozicion]);
-		globalColor.red = data[pozicion++];
-//fprintf(stderr, "datapozicion=%d\n",data[pozicion]);
-		globalColor.green = data[pozicion++];
-//fprintf(stderr, "datapozicion=%d\n",data[pozicion]);
-		globalColor.blue = data[pozicion++];
-//		mapGColor[i] = globalColor;
-		aGColor[i] = globalColor;
-//fprintf(stderr, "datapozicion=%d\n",pozicion);
-	}
-fprintf(stderr, "datapozicion=%d\n",pozicion);
-	fprintf(stderr,"zacatek bloku %x\n",data[pozicion]);
-	//printGlobalColorTable(mapGColor);
-
-	fprintf(stderr,"konec\n");
-for(int i = 0; i<countIndexTable;i++) {
-	fprintf(stderr,"red=%x, green=%x, blue=%x\n",aGColor[i].red, aGColor[i].green, aGColor[i].blue);
-}
+tGIF pullGif(vector<int> data) {
+	tGIF gif;
+	gif.header = pullHead(data);
+	data.erase(data.begin(), data.begin() + sizeof(gif.header));
+	gif.logDescription = pullLogDesc(data);
+	data.erase(data.begin(), data.begin() + sizeof(gif.logDescription) - sizeof(gif.logDescription.packedFields) + 1);
+	fprintf(stderr, "data 1 = %x\n",data[0]);
+	fprintf(stderr, "data 1 = %x\n",data[1]);
+	gif.globalColor = pullGlobalColor(data, gif.logDescription.packedFields.pixelBits);
+	data.erase(data.begin(), data.begin() + sizeof(gif.globalColor));//TODO:podivat se na velikosti dodelat, pohlidat to kdyz data o glabalnich barvach neexistuji
+	fprintf(stderr, "data 1 = %x\n",data[0]);
+	fprintf(stderr, "data 1 = %x\n",data[1]);
 // vyhledani urciteho bloku
-	fprintf(stderr,"zacatek bloku %x\n",data[pozicion]);
+/* int pozicion = 0;
 	while(pozicion < gif2Bmp.gifSize) {
 		if(data[pozicion] == 0x21) {
 			pozicion++;
@@ -144,11 +68,8 @@ for(int i = 0; i<countIndexTable;i++) {
 				graphicExt.packedFields.disposalMethod = (data[pozicion] & 28) >> 2;				
 				graphicExt.packedFields.reserved = (data[pozicion++] & 224) >> 5;						
 				graphicExt.delayTime = hexToDec(data[pozicion++], data[pozicion++]);
-fprintf(stderr, "chyba v hexa=%x\n",data[pozicion]);
 				graphicExt.transparentColorIndex = data[pozicion++];
-fprintf(stderr, "chyba v hexa=%x\n",data[pozicion]);
 				graphicExt.blockTerminator = data[pozicion++];
-fprintf(stderr, "chyba v hexa=%x\n",data[pozicion]);
 			}
 			else if(data[pozicion] == 0xFE) {
 			}
@@ -164,72 +85,104 @@ fprintf(stderr, "chyba v hexa=%x\n",data[pozicion]);
 			fprintf(stderr, "tady jsem u data = %x\n",data[pozicion]);
  			tImageDescription imageDesc;
 			imageDesc.imageSeparator = data[pozicion++];
-fprintf(stderr, "chyba? data v hexa=%x\n",data[pozicion]);
 			imageDesc.imageLeftPos = hexToDec(data[pozicion++], data[pozicion++]);
-fprintf(stderr, "chyba? data v hexa=%x\n",data[pozicion]);
 			imageDesc.imageTopPos = hexToDec(data[pozicion++], data[pozicion++]);
-fprintf(stderr, "chyba? data v hexa=%x\n",data[pozicion]);
 			imageDesc.imageWIdth = hexToDec(data[pozicion++], data[pozicion++]);
-fprintf(stderr, "chyba? data v hexa=%x\n",data[pozicion]);
 			imageDesc.imageHeight = hexToDec(data[pozicion++], data[pozicion++]);
-fprintf(stderr, "chyba? data v hexa=%x\n",data[pozicion]);
 			imageDesc.packedFields.color = (data[pozicion] & 1);
 			imageDesc.packedFields.interleaved = (data[pozicion] & 2) >> 1;
 			imageDesc.packedFields.sort = (data[pozicion] & 4) >> 2;
 			imageDesc.packedFields.reserved = (data[pozicion] & 18) >> 3;
 			imageDesc.packedFields.size = (data[pozicion++] & 224) >> 5;
-fprintf(stderr, "chyba? data v hexa=%x\n",data[pozicion]);
-printTPackedImg(imageDesc.packedFields);
+//printTPackedImg(imageDesc.packedFields);
 		
 			if(imageDesc.packedFields.color == 1) {																			// pokud 1(true) je pritomna lokalni tabulka barev
 			}
-
 			// ctu jiz data
 			int sizeLZW = data[pozicion++];																						// velikost minamilniho kodu LZW
 			int sizeBlock = data[pozicion++];																					// velikost bloku dat
-			int *subBlock;
-			subBlock = (int *) malloc((sizeBlock+1) * (sizeof(int)));
-			if(subBlock == NULL) {
-				exit(0);
-			}
-			char endBlock ='f';
+			vector<int> subBlock;
+			bool endBlock = false;
 			int i = 1;
-			while(endBlock != 't') {
+			while(endBlock != true) {
 				if(i <= sizeBlock) {
-					fprintf(stderr, "i:%d data v hexa=%x\n", i ,data[pozicion]);
-					subBlock[i] = data[pozicion++];
+					//fprintf(stderr, "i:%d data v hexa=%x\n", i ,data[pozicion]);
+					subBlock.push_back(data[pozicion++]);
+					i++;
+				}
+				else if(data[pozicion] == 0x00) {
+					fprintf(stderr, "konec bloku dat\n");
+					endBlock = true;
 				}
 				else {//nacitam novy blok, zjisti jeho velikost a realokace pole
 					fprintf(stderr, "Realokace i:%d data v hexa=%x\n", i ,data[pozicion]);
-					sizeBlock = sizeBlock + data[pozicion];
+					sizeBlock = sizeBlock + data[pozicion++];
 					fprintf(stderr, "sizeBlock=%d\n", sizeBlock);
-					int * pom = NULL;
-					int * pom2;
-					int *pom3;
-					pom = (int *) malloc( 2*sizeof(int)+1);
-					pom2 = (int *)realloc(pom, 10*sizeof(int)+1);
-//					subBlock = (int *) realloc((int*)subBlock, sizeof(sizeBlock));
-						fprintf(stderr, "CHYBA REALOKACE\n");
-//					if((pom == NULL) && (sizeBlock)) {
-						fprintf(stderr, "CHYBA REALOKACE\n");
-						free(subBlock);
-						exit(0);
-//					}
-//					else {
-//						subBlock = pom;
-//					}
 				}
-				i++;
 			}	
-fprintf(stderr, "chyba? data v hexa=%x\n",data[pozicion]);
 		}
 		else {
 		}
 	}
-	tGIF gif;
-	gif.header = header;
-	gif.logDescription = logDescription;
+	*/
 	return gif;
+}
+
+/**
+ * Naplneni hlavicky daty
+ */
+tHEADER pullHead(vector<int> data) {
+	tHEADER header;																													// struktura obsahujici hlavicku gifu
+	// naplneni hlavicky
+	header.signature[0] = data[0];																								// 0x47 G
+	header.signature[1] = data[1];																								// 0x49 I
+	header.signature[2] = data[2];																								// 0x46 F
+	header.version[0] = data[3];																									// 0x38 8
+	header.version[1] = data[4];																									// 0x39 9 nebo 0x37 7
+	header.version[2] = data[5];																									// 0x61 a
+
+	if(isGif(header.signature, header.version ) == 0) {																	// kontrola zdali je spravny soubor
+		fprintf(stderr, "NENI OBRAZEK< DODELAT, uzavreni vsech souboru a vypis hlasky\n");
+		exit(0);
+		//return ;0;
+	}
+	return header;
+}
+
+tLOSCDES pullLogDesc(vector<int> data) {
+	tLOSCDES logDescription;																										// struktura obsahujici popisovac logicke obrazovky
+	logDescription.screenWidth = hexToDec(data[0], data[1]);																// sirka obrazku v pixelech
+	logDescription.screenHeight = hexToDec(data[2], data[3]);															// vyska obrazku v pixelech
+	logDescription.packedFields.globalColorMap = (data[4] & 128) >> 7;												// 7 bit, 1 =tab. existuje, 0= neexistuje
+	logDescription.packedFields.colorResolutionBits = ((data[4] & 112)  >> 4) + 1;								// 4-6bit, barevna rozlisovaci hodnpta +1
+	logDescription.packedFields.reserved = (data[4] & 8) >> 3;															// 3bit, navesti trideni tabulky barev
+	logDescription.packedFields.pixelBits = (data[4] & 7) + 1;															// 0-2bit, velikost globalni tbulky +1	
+	logDescription.backgroundColorIndex = data[5];																			// index do tabulky barev, pozadi obrazku a ramecek
+	logDescription.pixelAspectRatio = (data[6] + 15) / 64;																// pomer stran obrazku
+
+	return logDescription;
+}
+
+vector<tGlobalColor> pullGlobalColor(vector<int> data, char pixelBits) {
+// nacteni dat do globalni tabulky barev
+	int countIndexTable = 1 << pixelBits;
+	vector<tGlobalColor> aGColor;
+	tGlobalColor globalColor;
+	int pozicion = 0;
+	for(int i = 0; i < countIndexTable; i++) {
+		globalColor.red = data[pozicion++];
+		globalColor.green = data[pozicion++];
+		globalColor.blue = data[pozicion++];
+		aGColor.push_back( globalColor);
+	}
+
+	return aGColor;
+}
+
+void printTGlobalColor(tGlobalColor color) {
+//	for(int i = 0; i<countIndexTable; i++) {
+//		fprintf(stderr,"red=%x, green=%x, blue=%x\n",color[i].red, color[i].green, color[i].blue);
+//	}
 }
 
 /**
