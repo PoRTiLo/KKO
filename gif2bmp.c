@@ -47,29 +47,21 @@ tGIF pullGif(vector<int> data) {
 	data.erase(data.begin(), data.begin() + sizeof(gif.header));
 	gif.logDescription = pullLogDesc(data);
 	data.erase(data.begin(), data.begin() + sizeof(gif.logDescription) - sizeof(gif.logDescription.packedFields) + 1);
-	fprintf(stderr, "data 1 = %x\n",data[0]);
-	fprintf(stderr, "data 1 = %x\n",data[1]);
-	gif.globalColor = pullGlobalColor(data, gif.logDescription.packedFields.pixelBits);
-	data.erase(data.begin(), data.begin() + sizeof(gif.globalColor));//TODO:podivat se na velikosti dodelat, pohlidat to kdyz data o glabalnich barvach neexistuji
+	if(gif.logDescription.packedFields.pixelBits != 1) {// ||  gif.logDescription.packedFields.pixelBits); // zpracovani globallni tabulky barev, pokud existuje
+		gif.globalColor = pullGlobalColor(data, gif.logDescription.packedFields.pixelBits);
+		data.erase(data.begin(), data.begin() + ((1 << gif.logDescription.packedFields.pixelBits))*3);
+	}
 	fprintf(stderr, "data 1 = %x\n",data[0]);
 	fprintf(stderr, "data 1 = %x\n",data[1]);
 // vyhledani urciteho bloku
-/* int pozicion = 0;
+	int pozicion = 0;
 	while(pozicion < gif2Bmp.gifSize) {
 		if(data[pozicion] == 0x21) {
 			pozicion++;
-			if(data[pozicion++] == 0xF9) {
-				tGraphicControlExt graphicExt;
-				graphicExt.extIntroducer = 0x21;
-				graphicExt.graphicControlLabel = 0xF9;
-				graphicExt.blockSize = data[pozicion++];																		//0x04;;
-				graphicExt.packedFields.colorFlag = data[pozicion] & 1;											
-				graphicExt.packedFields.input = (data[pozicion] & 2)  >> 1;								
-				graphicExt.packedFields.disposalMethod = (data[pozicion] & 28) >> 2;				
-				graphicExt.packedFields.reserved = (data[pozicion++] & 224) >> 5;						
-				graphicExt.delayTime = hexToDec(data[pozicion++], data[pozicion++]);
-				graphicExt.transparentColorIndex = data[pozicion++];
-				graphicExt.blockTerminator = data[pozicion++];
+			if(data[pozicion] == 0xF9) {
+				gif.graphicControlExt = pullGraphicControlExt(data);
+				data.erase(data.begin(), data.begin() + (sizeof(gif.graphicControlExt) - sizeof(gif.graphicControlExt.packedFields) ));
+				pozicion = 0;
 			}
 			else if(data[pozicion] == 0xFE) {
 			}
@@ -82,21 +74,11 @@ tGIF pullGif(vector<int> data) {
 			}
 		}
 		else if(data[pozicion] == 0x2c) {
-			fprintf(stderr, "tady jsem u data = %x\n",data[pozicion]);
- 			tImageDescription imageDesc;
-			imageDesc.imageSeparator = data[pozicion++];
-			imageDesc.imageLeftPos = hexToDec(data[pozicion++], data[pozicion++]);
-			imageDesc.imageTopPos = hexToDec(data[pozicion++], data[pozicion++]);
-			imageDesc.imageWIdth = hexToDec(data[pozicion++], data[pozicion++]);
-			imageDesc.imageHeight = hexToDec(data[pozicion++], data[pozicion++]);
-			imageDesc.packedFields.color = (data[pozicion] & 1);
-			imageDesc.packedFields.interleaved = (data[pozicion] & 2) >> 1;
-			imageDesc.packedFields.sort = (data[pozicion] & 4) >> 2;
-			imageDesc.packedFields.reserved = (data[pozicion] & 18) >> 3;
-			imageDesc.packedFields.size = (data[pozicion++] & 224) >> 5;
-//printTPackedImg(imageDesc.packedFields);
 		
-			if(imageDesc.packedFields.color == 1) {																			// pokud 1(true) je pritomna lokalni tabulka barev
+			gif.imageDescription = pullImageDescription(data);
+			data.erase(data.begin(), data.begin() + (sizeof(gif.imageDescription) - sizeof(gif.imageDescription.packedFields) -1));
+			if(gif.imageDescription.packedFields.color == 1) {																// pokud 1(true) je pritomna lokalni tabulka barev
+				fprintf(stderr,"obsahuje lokalni tabulku barev\n");
 			}
 			// ctu jiz data
 			int sizeLZW = data[pozicion++];																						// velikost minamilniho kodu LZW
@@ -124,7 +106,7 @@ tGIF pullGif(vector<int> data) {
 		else {
 		}
 	}
-	*/
+	
 	return gif;
 }
 
@@ -156,7 +138,7 @@ tLOSCDES pullLogDesc(vector<int> data) {
 	logDescription.packedFields.globalColorMap = (data[4] & 128) >> 7;												// 7 bit, 1 =tab. existuje, 0= neexistuje
 	logDescription.packedFields.colorResolutionBits = ((data[4] & 112)  >> 4) + 1;								// 4-6bit, barevna rozlisovaci hodnpta +1
 	logDescription.packedFields.reserved = (data[4] & 8) >> 3;															// 3bit, navesti trideni tabulky barev
-	logDescription.packedFields.pixelBits = (data[4] & 7) + 1;															// 0-2bit, velikost globalni tbulky +1	
+	logDescription.packedFields.pixelBits = (data[4] & 7) + 1;															// 0-2bit, velikost globalni tabulky +1	
 	logDescription.backgroundColorIndex = data[5];																			// index do tabulky barev, pozadi obrazku a ramecek
 	logDescription.pixelAspectRatio = (data[6] + 15) / 64;																// pomer stran obrazku
 
@@ -179,6 +161,60 @@ vector<tGlobalColor> pullGlobalColor(vector<int> data, char pixelBits) {
 	return aGColor;
 }
 
+tGraphicControlExt pullGraphicControlExt(vector<int> data) {
+	tGraphicControlExt graphicExt;
+	graphicExt.extIntroducer = data[0];
+	graphicExt.graphicControlLabel = data[1];
+	graphicExt.blockSize = data[2];																		//0x04;;
+	graphicExt.packedFields.colorFlag = data[3] & 1;											
+	graphicExt.packedFields.input = (data[3] & 2)  >> 1;								
+	graphicExt.packedFields.disposalMethod = (data[3] & 28) >> 2;				
+	graphicExt.packedFields.reserved = (data[3] & 224) >> 5;						
+	graphicExt.delayTime = hexToDec(data[4], data[5]);
+	graphicExt.transparentColorIndex = data[6];
+	graphicExt.blockTerminator = data[7];
+
+	return graphicExt;
+}
+tImageDescription pullImageDescription(vector<int> data) {
+	fprintf(stderr, "tady jsem u data = %x\n",data[0]);
+	tImageDescription imageDesc;
+	imageDesc.imageSeparator = data[0];
+	imageDesc.imageLeftPos = hexToDec(data[1], data[2]);
+	imageDesc.imageTopPos = hexToDec(data[3], data[4]);
+	imageDesc.imageWIdth = hexToDec(data[5], data[6]);
+	imageDesc.imageHeight = hexToDec(data[7], data[8]);
+	imageDesc.packedFields.color = (data[9] & 1);
+	imageDesc.packedFields.interleaved = (data[9] & 2) >> 1;
+	imageDesc.packedFields.sort = (data[9] & 4) >> 2;
+	imageDesc.packedFields.reserved = (data[9] & 18) >> 3;
+	imageDesc.packedFields.size = (data[9] & 224) >> 5;
+//printTPackedImg(imageDesc.packedFields);
+	return imageDesc;
+}
+
+void sortData() {
+	int i,j;
+	vector<int> table1;
+	vector<int> table2;
+	int imageHeight = 16;
+	for(i = 0; i <imageHeight; i++) {
+		table1.push_back(i);
+	}
+	j = 0;
+	for(i = 0; i < imageHeight; i += 8, j++) {
+		table2[i] = table1[j];
+	}
+	for(i = 4; i < imageHeight; i += 8, j++) {
+		table2[i] = table1[j];
+	}
+	for(i = 2; i < imageHeight; i += 4, j++) {
+		table2[i] = table1[j];
+	}
+	for(i = 1; i < imageHeight; i += 2, j++) {
+		table2[i] = table1[j];
+	}
+}
 void printTGlobalColor(tGlobalColor color) {
 //	for(int i = 0; i<countIndexTable; i++) {
 //		fprintf(stderr,"red=%x, green=%x, blue=%x\n",color[i].red, color[i].green, color[i].blue);

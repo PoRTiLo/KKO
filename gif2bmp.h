@@ -49,12 +49,6 @@ typedef struct {
 } tGlobalColor;
 
 typedef struct {
-	tHEADER header;
-	tLOSCDES logDescription;
-	std::vector<tGlobalColor> globalColor;
-} tGIF;
-
-typedef struct {
 	BYTE color;
 	BYTE interleaved;
 	BYTE sort;
@@ -136,6 +130,14 @@ typedef struct {
 	BYTE gifTrailer;
 } tTrailer;
 
+typedef struct {
+	tHEADER header;
+	tLOSCDES logDescription;
+	std::vector<tGlobalColor> globalColor;
+	tImageDescription imageDescription;
+	tGraphicControlExt graphicControlExt;
+} tGIF;
+
 int gif2bmp(tGIF2BMP *gif2bmp, FILE *inputFile, FILE *outputFile);
 std::vector<int> openGif(FILE *inputFile);
 char isGif(BYTE type[], BYTE version[]);
@@ -150,3 +152,6 @@ tLOSCDES pullLogDesc(std::vector<int> data);
 tHEADER pullHead(std::vector<int> data);
 tGIF pullGif(std::vector<int> data);
 void printTGlobalColor(tGlobalColor color);
+tGraphicControlExt pullGraphicControlExt(std::vector<int> data);
+tImageDescription pullImageDescription(std::vector<int> data);
+void sortData();
