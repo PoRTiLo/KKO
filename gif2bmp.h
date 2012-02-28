@@ -5,7 +5,7 @@
 #include <string.h>
 #include <string>
 #include <vector>
-//#include <map>
+#include <sys/types.h>
 //#include <malloc.h>
 
 typedef unsigned char BYTE;	// 1 byte
@@ -50,7 +50,7 @@ typedef struct {
 
 typedef struct {
 	BYTE color;
-	BYTE interleaved;
+	BYTE int32_terleaved;
 	BYTE sort;
 	BYTE reserved;
 	BYTE size;
@@ -73,7 +73,7 @@ typedef struct {
 
 typedef struct {
 	BYTE lzwSize;
-	int imageData;
+	int32_t imageData;
 } tImageData;
 
 typedef struct {
@@ -138,20 +138,20 @@ typedef struct {
 	tGraphicControlExt graphicControlExt;
 } tGIF;
 
-int gif2bmp(tGIF2BMP *gif2bmp, FILE *inputFile, FILE *outputFile);
-std::vector<int> openGif(FILE *inputFile);
+int32_t gif2bmp(tGIF2BMP *gif2bmp, FILE *inputFile, FILE *outputFile);
+std::vector<int32_t> openGif(FILE *inputFile);
 char isGif(BYTE type[], BYTE version[]);
 unsigned short hexToDec(BYTE num1, BYTE num2);
 void printTPacked(tPACKED packedFields); 
 void printTLoscdes(tLOSCDES logDescription);
-//void printGlobalColorTable(std::map<int,tGlobalColorT> colorTable); 
+//void printGlobalColorTable(std::map<int32_t,tGlobalColorT> colorTable); 
 void printTPackedEx(tPACKEDEX packedFields);
 void printTPackedImg(tPACKEDIMG packedFields);
-std::vector<tGlobalColor> pullGlobalColor(std::vector<int> data, char pixelBits);
-tLOSCDES pullLogDesc(std::vector<int> data);
-tHEADER pullHead(std::vector<int> data);
-tGIF pullGif(std::vector<int> data);
+std::vector<tGlobalColor> pullGlobalColor(std::vector<int32_t> data, char pixelBits);
+tLOSCDES pullLogDesc(std::vector<int32_t> data);
+tHEADER pullHead(std::vector<int32_t> data);
+tGIF pullGif(std::vector<int32_t> data);
 void printTGlobalColor(tGlobalColor color);
-tGraphicControlExt pullGraphicControlExt(std::vector<int> data);
-tImageDescription pullImageDescription(std::vector<int> data);
+tGraphicControlExt pullGraphicControlExt(std::vector<int32_t> data);
+tImageDescription pullImageDescription(std::vector<int32_t> data);
 void sortData();
