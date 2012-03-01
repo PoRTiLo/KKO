@@ -9,6 +9,7 @@
 #include <iostream>
 #include <inttypes.h>
 #include <sstream>
+#include <bitset>
 using namespace std;
 
 tGIF2BMP gif2Bmp;
@@ -58,7 +59,7 @@ tGIF pullGif(vector<int32_t> data) {
 
 // vyhledani urciteho bloku, bud samotnych bunarnich dat obrazku nebo nektereho rozsireni
 	uint32_t pozicion = 0;																											// pozice prochazeni v datech
-	vector<int32_t> subBlock;																										// vector obsahujici binarni data v LZW kode
+	vector<uint16_t> subBlock;																										// vector obsahujici binarni data v LZW kode
 	while(pozicion < gif2Bmp.gifSize) {
 // rozsireni
 		if(data[pozicion] == 0x21) {
@@ -108,14 +109,67 @@ tGIF pullGif(vector<int32_t> data) {
 		else {
 		}
 	}
-	decodeLZW(subBlock, gif);
+	// prevod cisel na posloupnost 1 a 0 v retezci 
+	string binary;
+	for(uint32_t i = 0; i < subBlock.size(); i++) {
+//		fprintf(stderr, "subBlock:%x, string %s \n", subBlock[i], dec2bin(subBlock[i]).c_str());
+		binary.insert(0, dec2bin(subBlock[i]));
+	}
+
+//	fprintf(stderr, "%s ",binary.c_str());
+//	fprintf(stderr, "\n%s", binary.substr(binary.size()-9,binary.size()).c_str());
+	 bin2dec( binary.substr(binary.size()-9,binary.size()), 9);
+
+	 decodeLZW(binary, gif);
 	return gif;
 }
-void decodeLZW(vector<int32_t> subBlock, tGIF gif) {
+string dec2bin(uint16_t num) {
+	string str;
+	uint8_t i = 0;
+	uint8_t pom = 0;
+	bool tr = true;
+	uint8_t count = 0;
+	while(tr) {
+		pom = num>>1;
+		i = num-(pom<<1);
+		if(i == 0) {
+		str.insert(0,"0" );
+		}
+		else {
+		str.insert(0,"1" );
+		}
+		if(pom ==0) {
+			tr = false;
+		}
+		num = pom;
+		count++;
+	}
+	for(;count<8;count++) {
+		str.insert(0,"0" );
+	}
+	return str;
+}
+
+uint32_t bin2dec(string str, uint8_t bit) {
+	uint16_t mask[] = {1,2,4,8,16,32,64,128,256,512,1024, 2048};
+	uint16_t num = 0;
+	string pom;
+	uint8_t pos = bit-1;
+	for(uint8_t i = 0; i <= bit; i++, pos--) {
+		pom = str.substr(i,1);
+		if(pom.compare("1") == 0) {
+			num = num + mask[pos];
+		}
+	}
+	return num;
+}
+
+//void decodeLZW(vector<uint16_t> subBlock, tGIF gif) {
+void decodeLZW(string subBlock, tGIF gif) {
 
 	// inicializace slovniku
 	vector<vector<int16_t> > dict;																								// TODO: asi string
-	int16_t dictSize = (1 << gif.logDescription.packedFields.pixelBits)+2;											// inicializace slovniku, velikost - pocet barev + CC + EOI
+	uint16_t dictSize = (1 << gif.logDescription.packedFields.pixelBits)+2;											// inicializace slovniku, velikost - pocet barev + CC + EOI
 	for(uint32_t i = 0; i < dictSize; i++) {
 		dict.push_back(vector<int16_t>());
 	}
@@ -124,13 +178,8 @@ void decodeLZW(vector<int32_t> subBlock, tGIF gif) {
 	}
 
 	// inicializace promennych
-	uint32_t pozicion = 0;																											// pozice prave cteneho kodu
 	uint16_t mask[] = {1, 3, 7, 15, 31, 63, 127, 255, 511, 1023, 2047, 4095};										// maska slouzici k ziskani spravneho cisla
 	uint8_t lzwBit = gif.sizeLZW + 1;
-	uint8_t up = 0;																													// posunuti prvniho cislo o up bitu
-	uint8_t down = gif.sizeLZW;																									// posunuti druheho cisla o dowb bitu, na zacatek velikost LZW kodu
-	uint16_t pom = 0;																													// pomocn epromenne, 1. nacteny kod
-	uint16_t pom1 = 0;																												// pomnocna promenna, 2.nacteny kod
 	uint16_t result = 0;																												// kod do slovniku, pom + pom1, posunute o n bity
 
 	
@@ -139,30 +188,16 @@ void decodeLZW(vector<int32_t> subBlock, tGIF gif) {
 
 // ------------------- dekodovani prvniho slova, mel by byt ve slovniku nebo to je hodnota inicializace slovniku ---------------------------------------------------------------
 
-	fprintf(stderr, "pozice:%d nacteny kod=0x%x, ", pozicion ,subBlock[pozicion]);
-	pom = subBlock[pozicion++] >> up;																							// posunuti doprava o n bitu
-	fprintf(stderr, "posun o=%d, prvni posun=%d\n", up , pom);
-	pom1 = subBlock[pozicion]&mask[up];																							// prvnich n bitu z druheho cisla
-	fprintf(stderr, "pozice:%d nacteny kod=0x%x, pouzita maska%d, ", pozicion,  pom1, mask[up]);
-	pom1 = pom1 << down;																												// posunuti o n bitu druheho cisla, prefix pom
-	fprintf(stderr, "posun o=%d, druhy posun=%d\n",down, (pom1));
-	result = pom1+pom;																												// vysledna hodnota, spojeni
-	fprintf(stderr, "vysledek=%d\n---------\n", result);
-	down--;up++;																														// posun o jiny pocet bitu
+	result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);
+	fprintf(stderr, "vysledek=%d\n---------%lu\n\n", result, subBlock.size());
+	subBlock.erase(subBlock.size()-lzwBit, subBlock.size());
 
 	// pokud je to znak CC, tak inicializace slovniku a nacteni dalsiho znaku
 	uint16_t CC = dict.size() - 2;
 	if(result == dict[CC][0]) {																						//inicilaizace slovniku, slovnik je jiz nachystan z drivejska
-		fprintf(stderr, "pozice:%d nacteny kod=0x%x, ", pozicion ,subBlock[pozicion]);
-		pom = subBlock[pozicion++] >> up;																						// posunuti doprava o n bitu
-		fprintf(stderr, "posun o=%d, prvni posun=%d\n", up , pom);
-		pom1 = subBlock[pozicion]&mask[up];																						// prvnich n bitu z druheho cisla
-		fprintf(stderr, "pozice:%d nacteny kod=0x%x, pouzita maska%d, ", pozicion,  pom1, mask[up]);
-		pom1 = pom1 << down;																											// posunuti o n bitu druheho cisla, prefix pom
-		fprintf(stderr, "posun o=%d, druhy posun=%d\n",down, (pom1));
-		result = pom1+pom;																											// vysledna hodnota, spojeni
-		fprintf(stderr, "vysledek=%d\n---------\n", result);
-		down--;up++;																													// posun o jiny pocet bitu
+		result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);
+		fprintf(stderr, "vysledek=%d\n---------%lu\n\n", result, subBlock.size());
+		subBlock.erase(subBlock.size()-lzwBit, subBlock.size());
 	}
 	// zpracuji prvni znak, ktery pujde do slovniku
 	vector<int16_t> output;																											// vystupni vektor
@@ -182,8 +217,8 @@ void decodeLZW(vector<int32_t> subBlock, tGIF gif) {
 
 // ------------------- dekodovani zbytkuslov, bezi dokud nejsou prectena vsechan data ---------------------------------------------------------------
  	int32_t i = 0;
- 	int16_t pos = dictSize;																											// posledni index slovniku
-	while(pozicion != subBlock.size()) {																						// dokud neprectu cely blok
+ 	uint32_t pos = dictSize;																											// posledni index slovniku
+	while(0 != subBlock.size()) {																						// dokud neprectu cely blok
 			fprintf(stderr, "oooooooooo \n");
 		if(dict.size() == 4095) {																									// pokud je velikost slovniku 4095
 			fprintf(stderr, "xxxxxxxxxx REINICIALZICAE slovniku:je = %lu velky\n",dict.size());					// TODO:doresit
@@ -195,45 +230,17 @@ void decodeLZW(vector<int32_t> subBlock, tGIF gif) {
 			lzwBit = gif.sizeLZW;
 			exit(0);
 		}
-		if(down == 0) {																												// precetl jsem 1bit z prvniho slova a vsechny bity s 2, posun na dalis
-			down = lzwBit-1;																											// nova velikost down, v zavislosti na poctu nacitanych bitu (8,9,10, 11)
-			up = 0;																														// nastaveni pocatecni velikost up 
-//			fprintf(stderr, "oooooooooo ZMENA posunovacich konstant na: up=%d,, down=%d\n", up, down);
-			pozicion++;																													// posun na dalsi slovo
-		}
-		// zpracovani a nacteni indexu do slovniku
-		pom = 0;																															// nulovani 1.cteneho slova
-		pom1 = 0;																														// nulovani 2.cteneho slova
-//		fprintf(stderr, "pozice:%d nacteny kod=0x%x, ", pozicion ,subBlock[pozicion]);
-		pom = subBlock[pozicion++] >> up;																						// posunuti doprava o n bitu
-//		fprintf(stderr, "posun o=%d, prvni posun=%d\n", up , pom);
-		pom1 = subBlock[pozicion]&mask[up];																						// prvnich n bitu z druheho cisla
-//		fprintf(stderr, "pozice:%d nacteny kod=0x%x, pouzita maska%d, ", pozicion,  pom1, mask[up]);
-		pom1 = pom1 << down;																											// posunuti o n bitu druheho cisla, prefix pom
-//		fprintf(stderr, "posun o=%d, druhy posun=%d\n",down, (pom1));
-		result = pom1+pom;																											// vysledna hodnota, spojeni
-//		fprintf(stderr, "vysledek=%d\n---------\n", result);
 
+		result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);
+		fprintf(stdout, "vysledek=%d\n---------%lu\n\n", result, subBlock.size());
+		subBlock.erase(subBlock.size()-lzwBit, subBlock.size());
 		if(result == dict[CC][0]) {																								// nacten kod na reinicializaci slovniku
-			fprintf(stderr, "oooooooooo ZMENA posunovacich konstant na: up=%d,, down=%d\n", up, down);
-			fprintf(stderr, "xxxxxxxxxx REINICIALIZACE slovniku:prisel kod 0x%x, %d\n",result,CC);
+			fprintf(stdout, "xxxxxxxxxx REINICIALIZACE slovniku:prisel kod 0x%x, %di%d, LZWbit%d\n",result,CC,i, lzwBit);
 			lzwBit++;																													// zvetseni nacitanych poctu bitu
-//			dict.clear();
-//			for(uint32_t i = 0; i < dictSize; i++) {
-//				dict.push_back(vector<int16_t>());
-//			}
-//			for(uint32_t i = 0; i < dictSize; i++) {																					// zapis hodnot od 0-velikost tabulky, CC + EOI 
-//				dict[i].push_back(i);
-//			}
-//			pos = dictSize;
-//			exit(0);																														// TODO:reinicializace, doresit
+			i++;
 		}
 		else {																															// porovnej s daty ve slovniku a zapis danou hodnotu
 //TODO:poradi jestli to co je pod timto delat i kdtz je reinicializace slovnuki!!!!!
-	//	fprintf(stderr, "dict end%d\n", dict[dict.size()-1][0]);
-	//	fprintf(stderr, "dict %lu\n", dict.size()-1);
-//	exit(0);
-		//if(result < dict[dict.size()-1][0]) {																				// je ve slovniku
 		if(result < (dict.size()-1)) {																							// je ve slovniku, ve slovniku jiz existuje index s touto hodnotou
 			//TODO:poresit co kdz dostanu moce velak cisla, to by se nemelo asik stat
 			dict.push_back(vector<int16_t>());																					// pridani hodnoty do slovniku
@@ -241,22 +248,16 @@ void decodeLZW(vector<int32_t> subBlock, tGIF gif) {
 				dict[pos].push_back( old[p]);
 			}
 			dict[pos].push_back( dict[result][0]);																				// pridani aktualniho znaku
-//		fprintf(stderr,"index v tabulce R=%x, G=%x, B=%x\n,",gif.globalColor[pom1+pom].red, gif.globalColor[pom+pom1].green, gif.globalColor[pom+pom1].blue);
-//		fprintf(stderr,"index v tabulce R=%x, G=%x, B=%x\n,",gif.globalColor[pom1+pom-1].red, gif.globalColor[pom+pom1-1].green, gif.globalColor[pom+pom1-1].blue);
-			//exit(0);
+			fprintf(stderr, "oooooooooo \n");
 		}
 		else {																															// neni ve slovniku
 			dict.push_back(vector<int16_t>());																					// pridani prcku do slovniku
 			for(uint16_t p = 0; p < old.size(); p++) {
 				dict[pos].push_back( old[p]);																						// kopirovami hopdnot z predesle casti kalendare
-				//fprintf(stderr, "%d, ",old[p]);
 			}
 			dict[pos].push_back( old[old.size()-1]);																			//. pridani posledni hodoty na nove vzniklemisto
 		}
-		//for(int l = 0; l < dict[pos].size(); l++) {
-		//	fprintf(stderr, " %dl..................slovnik:%d\n",dict[(dict.size()-1)][l],l);
-		//}
-
+			fprintf(stderr, "iiiii \n");
 		c.clear();																														// mazani vstupu
 		for(uint16_t k = 0; k < dict[result].size(); k++) {																// nacitani hodnot z kalendare
 			c.push_back(dict[result][k]);
@@ -268,14 +269,8 @@ void decodeLZW(vector<int32_t> subBlock, tGIF gif) {
 		for(uint16_t k = 0; k < c.size(); k++) {																				// vytisteni hodnot indexu barvy na vystup
 			output.push_back(c[k]);
 		}
-//		fprintf(stderr,"index v tabulce R=%x, G=%x, B=%x\n,",gif.globalColor[pom1+pom].red, gif.globalColor[pom+pom1].green, gif.globalColor[pom+pom1].blue);
-//		fprintf(stderr,"index v tabulce R=%x, G=%x, B=%x\n,",gif.globalColor[pom1+pom-1].red, gif.globalColor[pom+pom1-1].green, gif.globalColor[pom+pom1-1].blue);
-		i++;
-		//if(i >80) {
-		//	exit(0);
-		//	}
+		pos++;																											// zmena posunovaich hodnot, posun ve slovniku o jedno dopredu
 		}
-		down--;up++;pos++;																											// zmena posunovaich hodnot, posun ve slovniku o jedno dopredu
 	}
 		fprintf(stderr,"jsem na konci kodovani\n");
 }

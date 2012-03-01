@@ -157,4 +157,6 @@ void printTGraphicControlExt(tGraphicControlExt ext);
 void printTHeader(tHEADER head);
 void printTCommentExt(tCommentExt ext);
 void printTPlainTextExt(tPlainTextExt ext);
-void decodeLZW(std::vector<int32_t> subBlock, tGIF gif);
+void decodeLZW(std::string subBlock, tGIF gif);
+std::string dec2bin(uint16_t num);
+uint32_t bin2dec(std::string, uint8_t bit);
