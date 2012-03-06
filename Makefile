@@ -18,10 +18,10 @@ SRC=gif2bmp.c main.c
 HEAD=gif2bmp.h
 
 CCM=g++
-CCMFLAGS=-std=c++98 -Wall -pedantic -Wextra
+CCMFLAGS=-std=c++98 -Wall -pedantic -Wextra 
 CFLAGS=-std=c99 -pedantic -Wall -Wextra $(ARG_EXTRA)
 CC=gcc
-all:  ${PROGRAM} 
+all:  clean ${PROGRAM} 
 
 ${PROGRAM}: main.c
 	$(CCM) $(CCMFLAGS) $(SRC) $(HEAD) -o $@

@@ -131,7 +131,36 @@ typedef struct {
 	tImageDescription imageDescription;
 	tGraphicControlExt graphicControlExt;
 	int16_t sizeLZW;
+	std::vector<uint16_t> data;
 } tGIF;
+
+typedef struct {
+	uint16_t fileType;
+	uint32_t size;
+	uint16_t reserved1;
+	uint16_t reserved2;
+	uint32_t dataOffset;
+} tBmpHeader;
+
+typedef struct {
+	uint32_t headerSize;
+	uint32_t width;
+	uint32_t height;
+	uint16_t numOfPlanes;
+	uint16_t bitsPerPixel;
+	uint32_t compressMethod;
+	uint32_t sizeBitmap;
+	uint32_t horzResolution;
+	uint32_t vertResolution;
+	uint32_t numColorUsed;
+	uint32_t significantColors;
+} tBmpInfoHeader;
+
+typedef struct {
+	tBmpHeader header;
+	tBmpInfoHeader infoHeader;
+	std::vector<uint16_t> data;
+} tBMP;
 
 int32_t gif2bmp(tGIF2BMP *gif2bmp, FILE *inputFile, FILE *outputFile);
 // ------------------ Pomocne funkce ----------------------------------
@@ -157,6 +186,16 @@ void printTGraphicControlExt(tGraphicControlExt ext);
 void printTHeader(tHEADER head);
 void printTCommentExt(tCommentExt ext);
 void printTPlainTextExt(tPlainTextExt ext);
-void decodeLZW(std::string subBlock, tGIF gif);
+std::vector<uint16_t> decodeLZW(std::string subBlock, tGIF gif);
 std::string dec2bin(uint16_t num);
 uint32_t bin2dec(std::string, uint8_t bit);
+std::string int2Str(uint16_t num);
+std::string vector2Str(std::vector<uint16_t> vect);
+int printPNG(std::vector<uint16_t> vec, tGIF gif);
+void printGif(tGIF gif);
+uint8_t createBmp(tGIF gif, FILE *outputFile);
+tBMP pullBmp(tGIF gif);
+std::vector<uint16_t> bmpData(tGIF gif);
+uint32_t to(uint32_t i);
+uint16_t to(uint16_t i);
+
