@@ -7,12 +7,12 @@
  */
 #include "gif2bmp.h"
 
-#define BSWAP16(n) ((n) << 8 | (n) >> 8)
-
 tGIF2BMP gif2Bmp;
 
 int32_t gif2bmp(tGIF2BMP *gif2bmp, FILE *inputFile, FILE *outputFile) {
 
+	tGIF gif;
+	tBMP bmp;
 	createBmp(pullGif(openGif(inputFile)), outputFile);
 	//tisk dat do bmp souboru
 	return 0;
@@ -94,32 +94,6 @@ uint8_t createBmp(tGIF gif, FILE *outputFile) {
 	return result;
 }
 
-tBMP pullBmp(tGIF gif) {
-	tBMP bmp;
-	bmp.data = bmpData(gif);
-	tBmpHeader header;
-	header.fileType = 0x4D42;																										// zacatek souboru BM
-	header.size = 14 + 40 + bmp.data.size() ;																					// velikost souboru, hlavicka 14, info hlavicka 40 a data
-	header.reserved1 = 0x00000000;																								// rezervovane misto
-	header.reserved2 = 0x00000000;																								// rezervovane misto
-	header.dataOffset = 0x28;																										// pozice kde zacinaji uzitecna data
-	tBmpInfoHeader infoHeader;																										// druha hlavicka
-	infoHeader.headerSize = 0x28;																									// velikost hlavicky
-	infoHeader.width  = gif.logDescription.screenWidth;																	// sirka obrazku
-	infoHeader.height = gif.logDescription.screenHeight;																	// vyska obrazku
-	infoHeader.numOfPlanes = 0x01;																								//
-	infoHeader.bitsPerPixel = 0x18;																								// pocet bitu na pixel, 24, REDx8, greenx3, bluex3
-	infoHeader.compressMethod = 0x00;																							// kompresni metoda, bez komprese
-	infoHeader.sizeBitmap = bmp.data.size();																					// velikost surovych dat
-	infoHeader.horzResolution = 0x0B13;																							//
-	infoHeader.vertResolution = 0x0B13;																							//
-	infoHeader.numColorUsed = 0x00;																								//
-	infoHeader.significantColors = 0x00;																						//
-	bmp.header = header;
-	bmp.infoHeader = infoHeader;
-	return bmp;
-}
-
 vector<uint16_t> bmpData(tGIF gif) {
 	vector<uint16_t> data;
 	for(uint32_t i = 0; i < gif.data.size(); i++) {																			// tvorba dat, prevod indexu do tabulky barev na barvy
@@ -148,6 +122,35 @@ vector<uint16_t> bmpData(tGIF gif) {
 
 	return bmpData;
 }
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ----------------------------------------------------------------- Plneni struktur --------------------//
+// ////////////////////////////////////////////////////////////////////////////////////////////////////////
+tBMP pullBmp(tGIF gif) {
+	tBMP bmp;
+	bmp.data = bmpData(gif);
+	tBmpHeader header;
+	header.fileType = 0x4D42;																										// zacatek souboru BM
+	header.size = 14 + 40 + bmp.data.size() ;																					// velikost souboru, hlavicka 14, info hlavicka 40 a data
+	header.reserved1 = 0x00000000;																								// rezervovane misto
+	header.reserved2 = 0x00000000;																								// rezervovane misto
+	header.dataOffset = 0x28;																										// pozice kde zacinaji uzitecna data
+	tBmpInfoHeader infoHeader;																										// druha hlavicka
+	infoHeader.headerSize = 0x28;																									// velikost hlavicky
+	infoHeader.width  = gif.logDescription.screenWidth;																	// sirka obrazku
+	infoHeader.height = gif.logDescription.screenHeight;																	// vyska obrazku
+	infoHeader.numOfPlanes = 0x01;																								//
+	infoHeader.bitsPerPixel = 0x18;																								// pocet bitu na pixel, 24, REDx8, greenx3, bluex3
+	infoHeader.compressMethod = 0x00;																							// kompresni metoda, bez komprese
+	infoHeader.sizeBitmap = bmp.data.size();																					// velikost surovych dat
+	infoHeader.horzResolution = 0x0B13;																							//
+	infoHeader.vertResolution = 0x0B13;																							//
+	infoHeader.numColorUsed = 0x00;																								//
+	infoHeader.significantColors = 0x00;																						//
+	bmp.header = header;
+	bmp.infoHeader = infoHeader;
+	return bmp;
+}
+
 tGIF pullGif(vector<int32_t> data) {
 
 	tGIF gif;																															// struktura obsahujici vsechny informace o obrazku
@@ -257,35 +260,7 @@ string dec2bin(uint16_t num) {
 	return str;
 }
 
-uint32_t bin2dec(string str, uint8_t bit) {
-	uint16_t mask[] = {1,2,4,8,16,32,64,128,256,512,1024, 2048};
-	uint16_t num = 0;
-	string pom;
-	uint8_t pos = bit-1;
-	for(uint8_t i = 0; i <= bit; i++, pos--) {
-		pom = str.substr(i,1);
-		if(pom.compare("1") == 0) {
-			num = num + mask[pos];
-		}
-	}
-	return num;
-}
 
-
-string vector2Str(vector<uint16_t> vect) {
-	string str = "";
-	for(uint32_t i = 0; i < vect.size(); i++) {
-		//str += int2Str(vect[i]) + " ";
-		str += int2Str(vect[i]) + " ";
-	}
-	return str;
-}
-
-string int2Str(uint16_t num) {
-	stringstream ss;
-	ss << num;
-	return ss.str();
-}
 
 //void decodeLZW(vector<uint16_t> subBlock, tGIF gif) {
 vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
@@ -356,13 +331,13 @@ vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
 	uint16_t sizeMax = mask[maskI];
 	while(0 != subBlock.size()) {																									// dokud neprectu cely blok
 //		fprintf(stdout, "krok:%d, vstup:%d, [%d]: nova fraze:%s, \nvystup:%s\n",pos-dictSize+1, result, pos-1, vector2Str(phrase).c_str(),  vector2Str(pomOut).c_str());
-		//fprintf(stdout, "krok:%d, vstup:%d, [%d]:  \n",pos-dictSize+1, result, pos-1);
+		fprintf(stdout, "krok:%d, vstup:%d, [%d]:  \n",pos-dictSize+1, result, pos-1);
 		if(lzwBit >= 13) {																											// kontrola zda pocet nacitanych bitu neni vetsi nez 13, max12
 			fprintf(stdout, "xxxxxxxxxx REINICIALIZACE slovniku:pocet ctebych bitu je = %d\n", lzwBit);		// TODO:doresit, spojit inicializace a kontrolu s tim nahore
 			//lzwBit = gif.sizeLZW;
 			lzwBit = 12;
 			ren = true;
-			lzwBit = gif.sizeLZW + 1;
+		//	lzwBit = gif.sizeLZW + 1;
 			result = 0;																												// kod do slovniku, pom + pom1, posunute o n bity
 
 			//exit(0);
@@ -504,30 +479,6 @@ vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
 }
 
 
-
-int printPNG(vector<uint16_t> vec, tGIF gif) {
-
-FILE * fp;
-fp = fopen ("soubor.png", "wb");
-char buf[] = {"P3\n"
-"# The P3 means colors are in ASCII, then 3 columns and 2 rows,\n"
-"# then 255 for max color, then RGB triplets\n"
-"3 2\n"
-"255\n"};
-fwrite(buf,1,sizeof(buf),fp);
-char buf1[] ={"255   0   0     0 255   0     0   0 255\n"
-	"255 255   0   255 255 255     0   0   0\n"};
-fwrite(buf1,1,sizeof(buf1),fp);
-fclose(fp);
-}
-
-
-
-
-
-
-
-
 /**
  * Naplneni hlavicky daty
 */
@@ -602,36 +553,19 @@ tImageDescription pullImageDescription(vector<int32_t> data) {
 	imageDesc.imageTopPos = hexToDec(data[3], data[4]);																	// horni pozice obrazku
 	imageDesc.imageWidth = hexToDec(data[5], data[6]);																		// sirka bloku obrazku
 	imageDesc.imageHeight = hexToDec(data[7], data[8]);																	// vyska bloku obrazku
-	imageDesc.packedFields.color = (data[9] & 1);																			// 1 pokud je lokalni tabulka barev prtiomna
-	imageDesc.packedFields.int32_terleaved = (data[9] & 2) >> 1;														// 1 pokud je obrazek prokladan
-	imageDesc.packedFields.sort = (data[9] & 4) >> 2;																		// 1 pokud jsou barvy truideny podle dulezitosti TODO:podivat se
-	imageDesc.packedFields.reserved = (data[9] & 18) >> 3;																// vyhrazeno
-	imageDesc.packedFields.size = (data[9] & 224) >> 5;																	// velikost polozek lokalni tabulky barev
+	imageDesc.packedFields.color = (data[9] & 128) >> 7;																	// 1 pokud je lokalni tabulka barev prtiomna (8bit)
+	imageDesc.packedFields.int32_terleaved = (data[9] & 64) >> 6;														// 1 pokud je obrazek prokladan (7bit)
+	imageDesc.packedFields.sort = (data[9] & 32) >> 5;																		// 1 pokud jsou barvy truideny podle dulezitosti TODO:podivat se
+	imageDesc.packedFields.reserved = (data[9] & 24) >> 3;																// vyhrazeno
+	imageDesc.packedFields.size = (data[9] & 7);																	// velikost polozek lokalni tabulky barev
+		fprintf(stdout,"\n\n0x%x data, color%d\n\n",data[9], imageDesc.packedFields.color);
 	return imageDesc;
 }
 
-void sortData() {
-	int32_t i,j;
-	vector<int32_t> table1;
-	vector<int32_t> table2;
-	int32_t imageHeight = 16;
-	for(i = 0; i <imageHeight; i++) {
-		table1.push_back(i);
-	}
-	j = 0;
-	for(i = 0; i < imageHeight; i += 8, j++) {
-		table2[i] = table1[j];
-	}
-	for(i = 4; i < imageHeight; i += 8, j++) {
-		table2[i] = table1[j];
-	}
-	for(i = 2; i < imageHeight; i += 4, j++) {
-		table2[i] = table1[j];
-	}
-	for(i = 1; i < imageHeight; i += 2, j++) {
-		table2[i] = table1[j];
-	}
-}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ----------------------------------------------------------------- Tisk struktur ----------------------//
+// ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void printTGlobalColor(vector<tGlobalColor> color) {
 	fprintf(stdout, "\n------------------------------ Globalni tabulka barev -----------------------------------\n\n");
 	for(uint16_t i = 0; i < color.size(); i++) {
@@ -790,53 +724,15 @@ void printGif(tGIF gif) {
 	fprintf(stdout, "Delak LZW kodu : %d\n", gif.sizeLZW);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ----------------------------------------------------------------- Pomocne funkce ---------------------//
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
 unsigned short hexToDec(BYTE num1, BYTE num2) {
 	if(num2 != 0) {																													// pokud druhe cislo neni nulove
 		return (num1 + num2 + 255);																								// posunuti druheho cisla o 8 mist
 	}
 	else {
 		return (num1 + num2);																										// secteni dvou cisel
-	}
-}
-
-uint32_t to(uint32_t i) {
-	fprintf(stdout, ":0x%x, ", i);
-	uint32_t res = 0;
-	if(i > 255) {
-		res = ( (i & 255) << 24);
-	fprintf(stdout, "1vysledek:0x%x, ", res);
-		res = res + ((i & 65280) << 8);
-	fprintf(stdout, "2vysledek:0x%x, ", res);
-		if(i > 65535) {
-			uint32_t pom1 = (i & 16711680) >> 8;
-			res = res + pom1;
-	fprintf(stdout, "3vysledek:0x%x, ", res);
-			if(i>16777215) {
-				uint32_t pom2 = (i & 4278190080 )>> 24;
-				res = res + pom2;
-	fprintf(stdout, "4vysledek:0x%x, ", res);
-			}
-		}
-
-	}
-	else {
-		res = i << 24;
-	}
-	fprintf(stdout, "vysledek:0x%x, ", res);
-	return res;
-}
-uint16_t big2LittleE(uint16_t i) {
-	uint8_t pom = 0;
-	uint16_t pom2 = 0;
-	if(i>255) {
-		pom = i >> 8;
-		pom2 = i & 255;
-		pom2 = pom2 <<8;
-		return pom2 = pom2 +pom;
-	}
-	else {
-		pom2 = i << 8;
-		return pom;
 	}
 }
 
@@ -859,5 +755,54 @@ char isGif(BYTE signature[], BYTE version[] ) {
 		return 0;
 	}
 	return 1;
+}
+uint32_t bin2dec(string str, uint8_t bit) {
+	uint16_t mask[] = {1,2,4,8,16,32,64,128,256,512,1024, 2048};
+	uint16_t num = 0;
+	string pom;
+	uint8_t pos = bit-1;
+	for(uint8_t i = 0; i <= bit; i++, pos--) {
+		pom = str.substr(i,1);
+		if(pom.compare("1") == 0) {
+			num = num + mask[pos];
+		}
+	}
+	return num;
+}
+void sortData() {
+	int32_t i,j;
+	vector<int32_t> table1;
+	vector<int32_t> table2;
+	int32_t imageHeight = 16;
+	for(i = 0; i <imageHeight; i++) {
+		table1.push_back(i);
+	}
+	j = 0;
+	for(i = 0; i < imageHeight; i += 8, j++) {
+		table2[i] = table1[j];
+	}
+	for(i = 4; i < imageHeight; i += 8, j++) {
+		table2[i] = table1[j];
+	}
+	for(i = 2; i < imageHeight; i += 4, j++) {
+		table2[i] = table1[j];
+	}
+	for(i = 1; i < imageHeight; i += 2, j++) {
+		table2[i] = table1[j];
+	}
+}
+
+string vector2Str(vector<uint16_t> vect) {
+	string str = "";
+	for(uint32_t i = 0; i < vect.size(); i++) {
+		str += int2Str(vect[i]) + " ";
+	}
+	return str;
+}
+
+string int2Str(uint16_t num) {
+	stringstream ss;
+	ss << num;																															// prevod cisla na retezec
+	return ss.str();
 }
 

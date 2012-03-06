@@ -196,11 +196,7 @@ string dec2bin(WORD num);
 DWORD bin2dec(string, BYTE bit);
 string int2Str(WORD num);
 string vector2Str(vector<WORD> vect);
-int printPNG(vector<WORD> vec, tGIF gif);
 void printGif(tGIF gif);
 BYTE createBmp(tGIF gif, FILE *outputFile);
 tBMP pullBmp(tGIF gif);
 vector<WORD> bmpData(tGIF gif);
-DWORD to(DWORD i);
-WORD to(WORD i);
-
