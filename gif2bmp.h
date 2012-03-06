@@ -6,10 +6,15 @@
 #include <string>
 #include <vector>
 #include <sys/types.h>
+#include <sstream>
+#include <iostream>
+#include <inttypes.h>
 
-typedef unsigned char BYTE;	// 1 byte
-typedef unsigned short WORD;	// 2 byte
-typedef unsigned long DWORD;	// 4 byte
+using namespace std;
+
+typedef uint8_t BYTE;	// 1 byte
+typedef uint16_t WORD;	// 2 byte
+typedef uint32_t DWORD;	// 4 byte
 
 
 typedef struct {
@@ -90,7 +95,7 @@ typedef struct {
 typedef struct {
 	BYTE extIntroducer;
 	BYTE commentLabel;
-	std::string commentData;
+	string commentData;
 	BYTE blockTerminator;
 } tCommentExt;
 
@@ -106,7 +111,7 @@ typedef struct {
 	BYTE characterCellHeight;
 	BYTE textForegroundColorIndex;
 	BYTE textBackgroundColorIndex;
-	std::string plainTextData;
+	string plainTextData;
 	BYTE blockTerminator;
 } tPlainTextExt;
 
@@ -116,7 +121,7 @@ typedef struct {
 	BYTE blockSize;
 	BYTE applicationIdentifier[8];
 	BYTE applicationAuthCode[3];
-	std::string applicationData;
+	string applicationData;
 	BYTE blockTerminator;
 } tApplicatiopnExt;
 
@@ -127,75 +132,75 @@ typedef struct {
 typedef struct {
 	tHEADER header;
 	tLOSCDES logDescription;
-	std::vector<tGlobalColor> globalColor;
+	vector<tGlobalColor> globalColor;
 	tImageDescription imageDescription;
 	tGraphicControlExt graphicControlExt;
 	int16_t sizeLZW;
-	std::vector<uint16_t> data;
+	vector<WORD> data;
 } tGIF;
 
 typedef struct {
-	uint16_t fileType;
-	uint32_t size;
-	uint16_t reserved1;
-	uint16_t reserved2;
-	uint32_t dataOffset;
+	WORD fileType;
+	DWORD size;
+	WORD reserved1;
+	WORD reserved2;
+	DWORD dataOffset;
 } tBmpHeader;
 
 typedef struct {
-	uint32_t headerSize;
-	uint32_t width;
-	uint32_t height;
-	uint16_t numOfPlanes;
-	uint16_t bitsPerPixel;
-	uint32_t compressMethod;
-	uint32_t sizeBitmap;
-	uint32_t horzResolution;
-	uint32_t vertResolution;
-	uint32_t numColorUsed;
-	uint32_t significantColors;
+	DWORD headerSize;
+	DWORD width;
+	DWORD height;
+	WORD numOfPlanes;
+	WORD bitsPerPixel;
+	DWORD compressMethod;
+	DWORD sizeBitmap;
+	DWORD horzResolution;
+	DWORD vertResolution;
+	DWORD numColorUsed;
+	DWORD significantColors;
 } tBmpInfoHeader;
 
 typedef struct {
 	tBmpHeader header;
 	tBmpInfoHeader infoHeader;
-	std::vector<uint16_t> data;
+	vector<WORD> data;
 } tBMP;
 
 int32_t gif2bmp(tGIF2BMP *gif2bmp, FILE *inputFile, FILE *outputFile);
 // ------------------ Pomocne funkce ----------------------------------
-std::vector<int32_t> openGif(FILE *inputFile);
+vector<int32_t> openGif(FILE *inputFile);
 char isGif(BYTE type[], BYTE version[]);
 unsigned short hexToDec(BYTE num1, BYTE num2);
 void sortData();
 // ------------------  Funkce plnici struktury ------------------------
-std::vector<tGlobalColor> pullGlobalColor(std::vector<int32_t> data, char pixelBits);
-tLOSCDES pullLogDesc(std::vector<int32_t> data);
-tHEADER pullHead(std::vector<int32_t> data);
-tGIF pullGif(std::vector<int32_t> data);
-tGraphicControlExt pullGraphicControlExt(std::vector<int32_t> data);
-tImageDescription pullImageDescription(std::vector<int32_t> data);
+vector<tGlobalColor> pullGlobalColor(vector<int32_t> data, char pixelBits);
+tLOSCDES pullLogDesc(vector<int32_t> data);
+tHEADER pullHead(vector<int32_t> data);
+tGIF pullGif(vector<int32_t> data);
+tGraphicControlExt pullGraphicControlExt(vector<int32_t> data);
+tImageDescription pullImageDescription(vector<int32_t> data);
 // ------------------- Pomocne vypisove funkce ------------------------
 void printTPackedEx(tPACKEDEX packedFields);
 void printTLoscdes(tLOSCDES logDescription);
 void printTPacked(tPACKED packedFields); 
 void printTPackedImg(tPACKEDIMG packedFields);
-void printTGlobalColor(std::vector<tGlobalColor> color);
+void printTGlobalColor(vector<tGlobalColor> color);
 void printTImageDescription(tImageDescription des);
 void printTGraphicControlExt(tGraphicControlExt ext);
 void printTHeader(tHEADER head);
 void printTCommentExt(tCommentExt ext);
 void printTPlainTextExt(tPlainTextExt ext);
-std::vector<uint16_t> decodeLZW(std::string subBlock, tGIF gif);
-std::string dec2bin(uint16_t num);
-uint32_t bin2dec(std::string, uint8_t bit);
-std::string int2Str(uint16_t num);
-std::string vector2Str(std::vector<uint16_t> vect);
-int printPNG(std::vector<uint16_t> vec, tGIF gif);
+vector<WORD> decodeLZW(string subBlock, tGIF gif);
+string dec2bin(WORD num);
+DWORD bin2dec(string, BYTE bit);
+string int2Str(WORD num);
+string vector2Str(vector<WORD> vect);
+int printPNG(vector<WORD> vec, tGIF gif);
 void printGif(tGIF gif);
-uint8_t createBmp(tGIF gif, FILE *outputFile);
+BYTE createBmp(tGIF gif, FILE *outputFile);
 tBMP pullBmp(tGIF gif);
-std::vector<uint16_t> bmpData(tGIF gif);
-uint32_t to(uint32_t i);
-uint16_t to(uint16_t i);
+vector<WORD> bmpData(tGIF gif);
+DWORD to(DWORD i);
+WORD to(WORD i);
 

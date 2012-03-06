@@ -6,10 +6,8 @@
  * @date 2012-02-23
  */
 #include "gif2bmp.h"
-#include <iostream>
-#include <inttypes.h>
-#include <sstream>
-using namespace std;
+
+#define BSWAP16(n) ((n) << 8 | (n) >> 8)
 
 tGIF2BMP gif2Bmp;
 
@@ -100,23 +98,23 @@ tBMP pullBmp(tGIF gif) {
 	tBMP bmp;
 	bmp.data = bmpData(gif);
 	tBmpHeader header;
-	header.fileType = 0x4D42;
-	header.size = 14 + 40 + bmp.data.size() ;
-	header.reserved1 = 0x00000000;
-	header.reserved2 = 0x00000000;
-	header.dataOffset = 0x28;
-	tBmpInfoHeader infoHeader;
-	infoHeader.headerSize = 0x28;
-	infoHeader.width  = gif.logDescription.screenWidth;
-	infoHeader.height = gif.logDescription.screenHeight;
-	infoHeader.numOfPlanes = 0x01;
-	infoHeader.bitsPerPixel = 0x18;
-	infoHeader.compressMethod = 0x00;
-	infoHeader.sizeBitmap = bmp.data.size();
-	infoHeader.horzResolution = 0x0B13;	//nrbo 00
-	infoHeader.vertResolution = 0x0B13;
-	infoHeader.numColorUsed = 0x00;
-	infoHeader.significantColors = 0x00;
+	header.fileType = 0x4D42;																										// zacatek souboru BM
+	header.size = 14 + 40 + bmp.data.size() ;																					// velikost souboru, hlavicka 14, info hlavicka 40 a data
+	header.reserved1 = 0x00000000;																								// rezervovane misto
+	header.reserved2 = 0x00000000;																								// rezervovane misto
+	header.dataOffset = 0x28;																										// pozice kde zacinaji uzitecna data
+	tBmpInfoHeader infoHeader;																										// druha hlavicka
+	infoHeader.headerSize = 0x28;																									// velikost hlavicky
+	infoHeader.width  = gif.logDescription.screenWidth;																	// sirka obrazku
+	infoHeader.height = gif.logDescription.screenHeight;																	// vyska obrazku
+	infoHeader.numOfPlanes = 0x01;																								//
+	infoHeader.bitsPerPixel = 0x18;																								// pocet bitu na pixel, 24, REDx8, greenx3, bluex3
+	infoHeader.compressMethod = 0x00;																							// kompresni metoda, bez komprese
+	infoHeader.sizeBitmap = bmp.data.size();																					// velikost surovych dat
+	infoHeader.horzResolution = 0x0B13;																							//
+	infoHeader.vertResolution = 0x0B13;																							//
+	infoHeader.numColorUsed = 0x00;																								//
+	infoHeader.significantColors = 0x00;																						//
 	bmp.header = header;
 	bmp.infoHeader = infoHeader;
 	return bmp;
@@ -124,25 +122,28 @@ tBMP pullBmp(tGIF gif) {
 
 vector<uint16_t> bmpData(tGIF gif) {
 	vector<uint16_t> data;
-	for(uint32_t i = 0; i < gif.data.size(); i++) {
-		data.push_back(gif.globalColor[gif.data[i]].blue);
-		data.push_back(gif.globalColor[gif.data[i]].green);
-		data.push_back(gif.globalColor[gif.data[i]].red);
+	for(uint32_t i = 0; i < gif.data.size(); i++) {																			// tvorba dat, prevod indexu do tabulky barev na barvy
+		data.push_back(gif.globalColor[gif.data[i]].blue);																	// pridani modre barvy
+		data.push_back(gif.globalColor[gif.data[i]].green);																// pridani zelene barvy
+		data.push_back(gif.globalColor[gif.data[i]].red);																	// pridani cervene barvy
 	}
-	int64_t start = data.size() - (gif.logDescription.screenWidth*3) ;//-1;
-	int64_t end = data.size();
-	uint8_t aligned = 4 - ((gif.logDescription.screenWidth*3) % 4);
-	vector<uint16_t> bmpData;
+
+	// data v bmp jsou razena od leveho dolniho rohu
+	int64_t start = data.size() - (gif.logDescription.screenWidth*3) ;												// pocatek radku dat
+	int64_t end = data.size();																										// konec radku dat
+	uint8_t aligned = 4 - ((gif.logDescription.screenWidth*3) % 4);													// zarovani radku dat na delitelne 4
+	vector<uint16_t> bmpData;																										// spravne serazena data
 	int i = 0;
+	// transformace poradi dat
 	for(;start>=0;) {
-		for(; start < end; start++) {
+		for(; start < end; start++) {																								// tvorba spravneho poradi surovych dat
 			bmpData.push_back(data[start]);
 		}
-		for(uint8_t i = 0; i < aligned; i++) {
+		for(uint8_t i = 0; i < aligned; i++) {																					// doplneni nul do zarovnani delitelne 4
 			bmpData.push_back(0x00);
 		}
-		end = end - (gif.logDescription.screenWidth*3);
-		start = end - (gif.logDescription.screenWidth*3);
+		end = end - (gif.logDescription.screenWidth*3);																		// nastaveni noveho konce radku
+		start = end - (gif.logDescription.screenWidth*3);																	// nastaveni noveho pocatku radku
 	}
 
 	return bmpData;
@@ -155,7 +156,7 @@ tGIF pullGif(vector<int32_t> data) {
 	gif.logDescription = pullLogDesc(data);																					// naplneni struktury Lokalni popisova cobrazku
 	data.erase(data.begin(), data.begin() + sizeof(gif.logDescription) - sizeof(gif.logDescription.packedFields) + 1);	// mazani pouzitych dat
 // pokud existuje globalni tabulka barev, zpracuj ji
-	if(gif.logDescription.packedFields.globalColorMap == 1) {																	// zpracovani globallni tabulky barev, pokud existuje
+	if(gif.logDescription.packedFields.globalColorMap == 1) {															// zpracovani globallni tabulky barev, pokud existuje
 		gif.globalColor = pullGlobalColor(data, gif.logDescription.packedFields.pixelBits);						// naplneni struktury globalni tabulky
 		data.erase(data.begin(), data.begin() + ((1 << gif.logDescription.packedFields.pixelBits))*3);		// mazani pouzityhc dat
 	}
@@ -206,7 +207,7 @@ tGIF pullGif(vector<int32_t> data) {
 				else if(data[pozicion] == 0x00) {																				// nacteni konce toku binarnich dat
 					endBlock = true;																									// ukonceni
 				}
-				else {																													//nacitam novy blok, zjisti jeho velikost a realokace pole
+				else {																													// nacitam novy blok, zjisti jeho velikost a realokace pole
 					sizeBlock = sizeBlock + data[pozicion++];																	// pricteni k velikosti velikost dalsiho bloku
 				}
 			}
@@ -824,7 +825,7 @@ uint32_t to(uint32_t i) {
 	fprintf(stdout, "vysledek:0x%x, ", res);
 	return res;
 }
-uint16_t to(uint16_t i) {
+uint16_t big2LittleE(uint16_t i) {
 	uint8_t pom = 0;
 	uint16_t pom2 = 0;
 	if(i>255) {
