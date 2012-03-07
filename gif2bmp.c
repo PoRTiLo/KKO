@@ -45,10 +45,7 @@ vector<int32_t> openGif(FILE *inputFile) {
 uint8_t createBmp(tGIF gif, FILE *outputFile) {
 	uint8_t result = 0;
 
-	fprintf(stderr, "velikost rozkodavanho %d\n", gif.data.size());
 	tBMP bmp = pullBmp(gif);
-	// print head
-	//uint32_t p = 0x4D4241;//40;
 	uint32_t pom32[1];
 	uint16_t pom16[1];
 	pom16[0] = (bmp.header.fileType);
@@ -86,7 +83,6 @@ uint8_t createBmp(tGIF gif, FILE *outputFile) {
 
 	fprintf(stderr, "\nsize ........%lu\n\n",bmp.data.size());
 	for(uint32_t i = 0; i< bmp.data.size();i++) {
-		//fprintf(outputFile, "%x",bmp.data[i]);
 		uint16_t pom[1];
 		pom[0]= bmp.data[i];
 		fwrite(pom, sizeof(uint8_t),1, outputFile);
@@ -107,7 +103,6 @@ vector<uint16_t> bmpData(tGIF gif) {
 	int64_t end = data.size();																										// konec radku dat
 	uint8_t aligned = 4 - ((gif.logDescription.screenWidth*3) % 4);													// zarovani radku dat na delitelne 4
 	vector<uint16_t> bmpData;																										// spravne serazena data
-	int i = 0;
 	// transformace poradi dat
 	for(;start>=0;) {
 		for(; start < end; start++) {																								// tvorba spravneho poradi surovych dat
@@ -198,9 +193,7 @@ tGIF pullGif(vector<int32_t> data) {
 // cteni binarnich dat v LZW kodu
 			gif.sizeLZW = data[pozicion++];																						// velikost minamilniho kodu LZW
 			int32_t sizeBlock = data[pozicion++];																				// velikost bloku dat
-	fprintf(stdout, "VELIKOST LZW : %d, velikost bloku : %d\n", gif.sizeLZW, sizeBlock);
 			bool endBlock = false;																									// ukonceni cteni, podle delky a kodu 0x00
-	fprintf(stdout, "tady\n");
 			int16_t i = 1;																												// aktualne nacteny znak
 			while(endBlock != true) {
 				if(i <= sizeBlock) {																									// ctu jeden blok
@@ -219,57 +212,23 @@ tGIF pullGif(vector<int32_t> data) {
 		else {
 		}
 	}
-printGif(gif);
-	fprintf(stdout, "tady\n");
 	// prevod cisel na posloupnost 1 a 0 v retezci 
 	string binary;
 	for(uint32_t i = 0; i < subBlock.size(); i++) {
 		binary.insert(0, dec2bin(subBlock[i]));
 	}
-
 	bin2dec( binary.substr(binary.size()-9,binary.size()), 9);
-	
 	gif.data = decodeLZW(binary, gif);
-//	fprintf(stderr, "velikost rozkodavanho %d\n", gif.data.size());
 	return gif;
 }
-string dec2bin(uint16_t num) {
-	string str;
-	uint8_t i = 0;
-	uint8_t pom = 0;
-	bool tr = true;
-	uint8_t count = 0;
-	while(tr) {
-		pom = num>>1;
-		i = num-(pom<<1);
-		if(i == 0) {
-		str.insert(0,"0" );
-		}
-		else {
-		str.insert(0,"1" );
-		}
-		if(pom ==0) {
-			tr = false;
-		}
-		num = pom;
-		count++;
-	}
-	for(;count<8;count++) {
-		str.insert(0,"0" );
-	}
-	return str;
-}
 
 
-
-//void decodeLZW(vector<uint16_t> subBlock, tGIF gif) {
 vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
 
 	// inicializace slovniku
-	vector<vector<int16_t> > dict;																								// TODO: asi string
-
+	vector<vector<int16_t> > dict;
 	uint16_t dictSize = (1 << gif.logDescription.packedFields.pixelBits)+2;											// inicializace slovniku, velikost - pocet barev + CC + EOI
-	if(dictSize == 4) {		//TODO:poresit proc to tak je
+	if(dictSize == 4) {																												//TODO:poresit proc to tak je
 		dictSize += 2;
 	}
 	for(uint32_t i = 0; i < dictSize; i++) {
@@ -278,163 +237,96 @@ vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
 	for(uint32_t i = 0; i < dictSize; i++) {																					// zapis hodnot od 0-velikost tabulky, CC + EOI 
 		dict[i].push_back(i);
 	}
-
 	// inicializace promennych
-	uint8_t lzwBit = gif.sizeLZW + 1;
+	uint8_t lzwBit = gif.sizeLZW + 1;																							// pocet ctenych bitu
 	uint16_t result = 0;																												// kod do slovniku, pom + pom1, posunute o n bity
-
-	
-	fprintf(stdout, "zacnu decodovat\n");
-
-
 // ------------------- dekodovani prvniho slova, mel by byt ve slovniku nebo to je hodnota inicializace slovniku ---------------------------------------------------------------
-
-	result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);
-	fprintf(stdout, "zacnu decodovat...%d\n", result);
-	fprintf(stdout, "\n%s\n",subBlock.c_str());
-	fprintf(stdout, "vysledek=%d\n---------%lu\n\n", result, subBlock.size());
-	subBlock.erase(subBlock.size()-lzwBit, subBlock.size());
+	result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);						// ziskani prvniho slova
+	subBlock.erase(subBlock.size()-lzwBit, subBlock.size());																// smazani prectenych bitu
 
 	// pokud je to znak CC, tak inicializace slovniku a nacteni dalsiho znaku
-	uint16_t CC = dict.size() - 2;
-	uint16_t EOI = dict.size() - 1;
-	fprintf(stdout, "\n%s\n",subBlock.c_str());
-	fprintf(stdout, "zacnu decodovat...CC : %d\n", CC);
-	if(result == dict[CC][0]) {																						//inicilaizace slovniku, slovnik je jiz nachystan z drivejska
+	uint16_t CC = dict.size() - 2;																								// pozice hodnoty CC ve slovniku
+	uint16_t EOI = dict.size() - 1;																								// pozice hodnoty EOI ve slovniku
+	if(result == dict[CC][0]) {																									// inicilaizace slovniku, slovnik je jiz nachystan z drivejska
 		result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);
-		fprintf(stdout, "vysledek=%d\n---------%lu\n\n", result, subBlock.size());
 		subBlock.erase(subBlock.size()-lzwBit, subBlock.size());
 	}
 	// zpracuji prvni znak, ktery pujde do slovniku
 	vector<uint16_t> output;																										// vystupni vektor
-	vector<uint16_t> pomOut;	
 	vector<uint16_t> old;																											// vektor znaku predeslych
-	vector<uint16_t> phrase;																										// nove vytvorena fraze, ulozi se do slovniku
-	uint8_t last = 0;
+	uint8_t last = 0;																													// posldne nacteny bit
 	if(result > dict.size()) {
-		fprintf(stdout, "DIVNE PORESIT, jako prvni prislo moc velke cislo, ma byt mensi nez velikost slovniku, coy je %lu",dict.size());
+		fprintf(stdout, "DIVNE PORESIT, jako prvni prislo moc velke cislo, ma byt mensi nez velikost slovniku, coy je %lu",dict.size()); //TODO
 		exit(0);
 	}
-//	exit(0);
-	fprintf(stdout, "zacnu decodovat...%d\n", result);
-	pomOut.push_back(dict[result][0]);
-	old.push_back(dict[result][0]);
-	output.push_back(dict[result][0]);
-//	fprintf(stdout, "c=%d, old=%d, output=%d\n",c[0], old[0], output[0]);
+	old.push_back(dict[result][0]);																								// uchovani nactenych dat daneho indexu slovniku
+	output.push_back(dict[result][0]);																							// stream vystupu, index do palety barev
 
 // ------------------- dekodovani zbytkuslov, bezi dokud nejsou prectena vsechan data ---------------------------------------------------------------
- 	int32_t i = 0;
  	uint32_t pos = dictSize;																										// posledni index slovniku
-	bool ren = false;
-	uint8_t maskI = lzwBit;
-	uint16_t mask[] = {0,1,3,7,15,31,63,127,255,511, 1023, 2047, 4095, 8191};								// maska slouzici k ziskani spravneho cisla, TODO:dynamicky, tedy 2^compresionSize - 1
-	uint16_t sizeMax = mask[maskI];
+	uint8_t maskI = lzwBit;																											// pozice v masce
+	uint16_t mask[] = {0,1,3,7,15,31,63,127,255,511, 1023, 2047, 4095, 8191};										// maska slouzici k ziskani spravneho cisla
+	uint16_t sizeMax = mask[maskI];																								// maximalni velikost aktualniho slovniku
 	while(0 != subBlock.size()) {																									// dokud neprectu cely blok
-//		fprintf(stdout, "krok:%d, vstup:%d, [%d]: nova fraze:%s, \nvystup:%s\n",pos-dictSize+1, result, pos-1, vector2Str(phrase).c_str(),  vector2Str(pomOut).c_str());
 		fprintf(stdout, "krok:%d, vstup:%d, [%d]:  \n",pos-dictSize+1, result, pos-1);
 		if(lzwBit >= 13) {																											// kontrola zda pocet nacitanych bitu neni vetsi nez 13, max12
-			fprintf(stdout, "xxxxxxxxxx REINICIALIZACE slovniku:pocet ctebych bitu je = %d\n", lzwBit);		// TODO:doresit, spojit inicializace a kontrolu s tim nahore
-			//lzwBit = gif.sizeLZW;
-			lzwBit = 12;
-			ren = true;
-		//	lzwBit = gif.sizeLZW + 1;
-			result = 0;																												// kod do slovniku, pom + pom1, posunute o n bity
-
-			//exit(0);
+			lzwBit = 12;																												// snizeni bitu na maximalni hodnotu, 12
 		}
 
-		result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);
-		fprintf(stdout, "vysledek=%d\n---------%lu\n\n", result, subBlock.size());
+		result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);					// nacteni dalsiho kodoveho slova
 		subBlock.erase(subBlock.size()-lzwBit, subBlock.size());
-		//if(dict.size() == 4096) {																									// pokud je velikost slovniku 4095
-		//	fprintf(stdout, "xxxxxxxxxx REINICIALZICAE slovniku:je = %lu velky\n",dict.size());					// TODO:doresit
-		//	lzwBit = gif.sizeLZW+1;																									// 
-		//	exit(0);
-		//}
 		if(result == EOI) {																											// ukoncovaci znak
 			break;
 		}
 		if(result == dict[CC][0]) {																								// nacten kod na reinicializaci slovniku
-			fprintf(stdout, "xxxxxxxxxx REINICIALIZACE slovniku:prisel kod 0x%x, %di%d, LZWbit%d\n",result,CC,i, lzwBit);
-			//lzwBit++;																													// zvetseni nacitanych poctu bitu
-			i++;
-			if(ren == true) {
-				fprintf(stdout, "zmena slovniku\n");
-		//		exit(0);
-			}
-		//	break;
+			fprintf(stdout, "xxxxxxxxxx REINICIALIZACE slovniku:prisel kod 0x%x, %d, LZWbit%d\n",result,CC, lzwBit);
 	//------------nastaveni na zaatek, vsechno smazat, inicalizovat slovnik, atd...
-			lzwBit = gif.sizeLZW+1;
+			lzwBit = gif.sizeLZW + 1;																								// nastaveni poctu ctenych bitu na pocatecni hpdnotu
 			maskI = lzwBit;
-			sizeMax = mask[maskI];
-
-			ren = false;
- 			pos = dictSize;																										// posledni index slovniku
+			sizeMax = mask[maskI];																									// maxiamlni velikost slovniku
+ 			pos = dictSize;																											// posledni index slovniku
 			// inicializace slovniku
-			dict.clear();																								// TODO: asi string
-			dictSize = (1 << gif.logDescription.packedFields.pixelBits)+2;											// inicializace slovniku, velikost - pocet barev + CC + EOI
+			dict.clear();																												// smazani stareho slovniku
+			dictSize = (1 << gif.logDescription.packedFields.pixelBits)+2;												// inicializace slovniku, velikost - pocet barev + CC + EOI
 			for(uint32_t i = 0; i < dictSize; i++) {
 				dict.push_back(vector<int16_t>());
 			}
-			for(uint32_t i = 0; i < dictSize; i++) {																					// zapis hodnot od 0-velikost tabulky, CC + EOI 
+			for(uint32_t i = 0; i < dictSize; i++) {																			// zapis hodnot od 0-velikost tabulky, CC + EOI 
 				dict[i].push_back(i);
 			}
 
-			result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);
+			result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);				// nacteni dalsiho kodoveho slova
 			subBlock.erase(subBlock.size()-lzwBit, subBlock.size());
 
 	// pokud je to znak CC, tak inicializace slovniku a nacteni dalsiho znaku
-			if(result == dict[CC][0]) {																						//inicilaizace slovniku, slovnik je jiz nachystan z drivejska
+			if(result == dict[CC][0]) {																							// inicilaizace slovniku, slovnik je jiz nachystan z drivejska
 				result = bin2dec( subBlock.substr(subBlock.size()-lzwBit, subBlock.size()), lzwBit);
-//		fprintf(stdout, "vysledek=%d\n---------%lu\n\n", result, subBlock.size());
 				subBlock.erase(subBlock.size()-lzwBit, subBlock.size());
 			}
-		fprintf(stdout, "vstup:%d\n", result);
 	// zpracuji prvni znak, ktery pujde do slovniku
-			last = 0;
+			last = 0;																													// posledne nacteny bit je prazdny
 			if(result > dict.size()) {
 				fprintf(stdout, "DIVNE PORESIT, jako prvni prislo moc velke cislo, ma byt mensi nez velikost slovniku, coy je %lu",dict.size());
 				exit(0);
 			}
-			pomOut.clear();
 			old.clear();
-			phrase.clear();
-			pomOut.push_back(dict[result][0]);
 			old.push_back(dict[result][0]);
 			output.push_back(dict[result][0]);
-			pomOut.push_back(dict[result][0]);
-
-/////////////////////////// --------------------- konec reinicializace------------------
-
-
-
-
-
-
-
-
 		}
 		else {																															// porovnej s daty ve slovniku a zapis danou hodnotu
-			pomOut.clear();
-			phrase.clear();
-//TODO:poradi jestli to co je pod timto delat i kdtz je reinicializace slovnuki!!!!!
-		if(result < (dict.size())) {																							// je ve slovniku, ve slovniku jiz existuje index s touto hodnotou
+		if(result < (dict.size())) {																								// je ve slovniku, ve slovniku jiz existuje index s touto hodnotou
 			// tisk hodnot ze slovniku z indexu result
-			for(uint16_t k = 0; k < dict[result].size(); k++) {																				// vytisteni hodnot indexu barvy na vystup
+			for(uint16_t k = 0; k < dict[result].size(); k++) {															// vytisteni hodnot indexu barvy na vystup
 				output.push_back(dict[result][k]);
-				pomOut.push_back(dict[result][k]);
 			}
 			// prvni hodnota ze slovniku na indexu[result][0]
 			last = dict[result][0];
-			//mew.clear;
 			dict.push_back(vector<int16_t>());																					// pridani hodnoty do slovniku
-			for(uint16_t k = 0; k < old.size(); k++) {//minuly vystup
+			for(uint16_t k = 0; k < old.size(); k++) {																		//minuly vystup
 				dict[pos].push_back(old[k]);
-				phrase.push_back(old[k]);
 			}
-			dict[pos].push_back(last);//pridani posledniho prvku, z nynejsihy vystupu
-			phrase.push_back(last);
-			old.clear();// smazani vyzsuptu
+			dict[pos].push_back(last);																								//pridani posledniho prvku, z nynejsihy vystupu
+			old.clear();																												// smazani vyzsuptu
 			// uchovani predelseho vystupu
 			for(uint16_t k = 0; k < dict[result].size(); k++) {
 				old.push_back(dict[result][k]);
@@ -443,38 +335,24 @@ vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
 		else {																															// neni ve slovniku
 			last = old[0];
 			dict.push_back(vector<int16_t>());																					// pridani prcku do slovniku
-			for(uint16_t k = 0; k < old.size(); k++) {																				// vytisteni hodnot indexu barvy na vystup
+			for(uint16_t k = 0; k < old.size(); k++) {																		// vytisteni hodnot indexu barvy na vystup
 				output.push_back(old[k]);
 				dict[pos].push_back(old[k]);																						// kopirovami hopdnot z predesle casti kalendare
-				pomOut.push_back(old[k]);
-				phrase.push_back(old[k]);
 			}
-			phrase.push_back(last);
-			dict[pos].push_back(last);																						// kopirovami hopdnot z predesle casti kalendare
+			dict[pos].push_back(last);																								// kopirovami hopdnot z predesle casti kalendare
 			output.push_back(last);
-			pomOut.push_back(last);
 			old.push_back(last);
-			// uchovani predelseho vystupu
-			//dict[pos].push_back( old[old.size()-1]);																			//. pridani posledni hodoty na nove vzniklemisto
 		}
-		if(pos == sizeMax) {
-			maskI++;
-			sizeMax = mask[maskI];
-			lzwBit++;
-			fprintf(stdout, "xxxxxxxxxx REINICIALZICAE LZW, zvetseni bitu na = %u velky\n",lzwBit);					// TODO:doresit
-			if(sizeMax == 8191 ){
-//			exit(0);
-			}
+		if(pos == sizeMax) {																											// slovnik dosal sve dosavadni maximalni velikosti
+			maskI++;																														// posun pozice o jedno v masce velikosti slovniku
+			sizeMax = mask[maskI];																									// zvetseni velikosti slovniku
+			lzwBit++;																													// zvteseni poctu nacitanych bitu
+			fprintf(stdout, "xxxxxxxxxx REINICIALZICAE LZW, zvetseni bitu na = %u velky\n",lzwBit);
 		}
 		pos++;																															// zmena posunovaich hodnot, posun ve slovniku o jedno dopredu
 		}
 	}
 
-//	for(uint32_t p = 0; p <output.size(); p++ ) {
-		//fprintf(stdout, "%s\n",vector2Str(output).c_str());
-//		fprintf(stdout, "%d\n",output.size());
-//	}
-//printPNG(output, gif);
 	return output;
 }
 
@@ -557,51 +435,62 @@ tImageDescription pullImageDescription(vector<int32_t> data) {
 	imageDesc.packedFields.int32_terleaved = (data[9] & 64) >> 6;														// 1 pokud je obrazek prokladan (7bit)
 	imageDesc.packedFields.sort = (data[9] & 32) >> 5;																		// 1 pokud jsou barvy truideny podle dulezitosti TODO:podivat se
 	imageDesc.packedFields.reserved = (data[9] & 24) >> 3;																// vyhrazeno
-	imageDesc.packedFields.size = (data[9] & 7);																	// velikost polozek lokalni tabulky barev
-		fprintf(stdout,"\n\n0x%x data, color%d\n\n",data[9], imageDesc.packedFields.color);
+	imageDesc.packedFields.size = (data[9] & 7);																				// velikost polozek lokalni tabulky barev
 	return imageDesc;
 }
+
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ----------------------------------------------------------------- Tisk struktur ----------------------//
 // ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Tisken globalni tabulku barev,
+ *
+ * @Param color Vektor struktur obsahujici globalni tabulku barev.
+ */
+/* ----------------------------------------------------------------------------*/
 void printTGlobalColor(vector<tGlobalColor> color) {
-	fprintf(stdout, "\n------------------------------ Globalni tabulka barev -----------------------------------\n\n");
+	fprintf(stderr, "\n------------------------------ Globalni tabulka barev -----------------------------------\n\n");
 	for(uint16_t i = 0; i < color.size(); i++) {
-		fprintf(stdout,"index:%d red=0x%x, green=0x%x, blue=0x%x\n",i, color[i].red, color[i].green, color[i].blue);
+		fprintf(stderr,"index:%d red=0x%x, green=0x%x, blue=0x%x\n",i, color[i].red, color[i].green, color[i].blue);
 	}
 }
 
+/* --------------------------------------------------------------------------*/
 /**
- * @brief   Tisk struktury tPACKED.
- * @param   Struktura tPACKED
- * @return
+ * @Synopsis  Tsik strukturu packed z rozsireni.
+ *
+ * @Param packedFields Struktura packed obsahujic i info o obrazku.
  */
+/* ----------------------------------------------------------------------------*/
 void printTPacked(tPACKED packedFields) {
-//	fprintf(stdout, "------------------------------Struktura tPACKED ---------------------------------\n");
-	fprintf(stdout, "7bit=%d, 4-6bit=%d, 3bit=%d, 0-2bit=%d\n", packedFields.globalColorMap, 
-			                                                      packedFields.colorResolutionBits,
-																					packedFields.reserved,
-																					packedFields.pixelBits
+	fprintf(stderr, "7bit=%d, 4-6bit=%d, 3bit=%d, 0-2bit=%d\n", packedFields.globalColorMap, 
+			packedFields.colorResolutionBits, packedFields.reserved, packedFields.pixelBits
 			);
 	string str = "NE";
 	if(packedFields.globalColorMap == 1) {
 		str = "ANO";
 	}
-	fprintf(stdout, "Pritomnost globalni tabulky : %s\nBarevna rozlisovaci hodnota na jedne pixel : %d\nRezervovano : %d\nVelikost globalni tabulky : %d\n", 
-																					str.c_str(), 
-			                                                      packedFields.colorResolutionBits,
-																					packedFields.reserved,
-																					1 << packedFields.pixelBits);
+	fprintf(stderr, "Pritomnost globalni tabulky : %s\nBarevna rozlisovaci hodnota na jedne pixel : %d\n \
+			Rezervovano : %d\nVelikost globalni tabulky : %d\n", 	str.c_str(), 
+			packedFields.colorResolutionBits, packedFields.reserved,	1 << packedFields.pixelBits
+			);
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Tsik strukturu packed z rozsireni.
+ *
+ * @Param packedFields Struktura packed obsahujic i info o obrazku.
+ */
+/* ----------------------------------------------------------------------------*/
 void printTPackedEx(tPACKEDEX packedFields) {
-	//fprintf(stdout, "------------------------------Struktura tPACKEDEX ---------------------------------\n");
-	fprintf(stdout, "5-7bit=%d, 2-4bit=%d, 1bit=%d, 0bit=%d\n", packedFields.reserved, 
-			                                                      packedFields.disposalMethod,
-																					packedFields.input,
-																					packedFields.colorFlag
+	fprintf(stderr, "5-7bit=%d, 2-4bit=%d, 1bit=%d, 0bit=%d\n", packedFields.reserved, 
+			packedFields.disposalMethod,packedFields.input,	packedFields.colorFlag
 			);
 	string str = "NE";
 	if(packedFields.colorFlag == 1) {
@@ -611,105 +500,141 @@ void printTPackedEx(tPACKEDEX packedFields) {
 	if(packedFields.input == 1) {
 		str1 = "ANO";
 	}
-	fprintf(stdout, "Vyhrazeno : %d\nManipulace s garfiou : 0x%x\nOcekavan uzivateluv vstup : %s\nObsahuje polozka 'index pruhlednosti' index do palety barev : %s\n", 
-																					packedFields.reserved, 
-			                                                      packedFields.disposalMethod,
-																					str1.c_str(),
-																					str.c_str()
+	fprintf(stderr, "Vyhrazeno : %d\nManipulace s garfiou : 0x%x\nOcekavan uzivateluv vstup : %s\n \
+			Obsahuje polozka 'index pruhlednosti' index do palety barev : %s\n", 
+			packedFields.reserved, packedFields.disposalMethod,str1.c_str(),	str.c_str()
 			);
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Tiskne popis obrazku struktury tPackedImg.
+ *
+ * @Param packedFields Data struktury, info o lokalni tabulce barev atd..
+ */
+/* ----------------------------------------------------------------------------*/
 void printTPackedImg(tPACKEDIMG packedFields) {
-//	fprintf(stdout, "\n------------------------------Struktura tPACKEDIMG ---------------------------------\n\n");
 	string str = "NE";
-	if(packedFields.color == 1) {
+	if(packedFields.color == 1) {																									// obsahuje lokalni tabulku barev?
 		str = "ANO";
 	}
 	string str1 = "NE";
-	if(packedFields.int32_terleaved == 1) {
+	if(packedFields.int32_terleaved == 1) {																					// jsou data prokladana?
 		str1 = "ANO";
 	}
 	string str2 = "NE";
-	if(packedFields.sort == 1) {
+	if(packedFields.sort == 1) {																									// je tabulka barev tridena?
 		str2 = "ANO";
 	}
-	fprintf(stdout, "Pocet bitu na oplozku v loaklni tabulca barev : %d\nVyhrazeno : %d\nTabulak barev tridena podle dulezitosti : %s\nProkladani : %s\nPritomna lokalni tabulka barev : %s\n", 
-																								packedFields.size, 
-			                                 			                     packedFields.reserved,
-																								str2.c_str(),
-																								str1.c_str(),
-																								str.c_str()
+	fprintf(stderr, "Pocet bitu na oplozku v loaklni tabulca barev : %d\nVyhrazeno : %d\n \
+			Tabulak barev tridena podle dulezitosti : %s\nProkladani : %s\nPritomna lokalni tabulka barev : %s\n", 
+			packedFields.size, packedFields.reserved,	str2.c_str(),str1.c_str(),	str.c_str()
 			);
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Tisken strukturu obsahujici logicky popis obrazku.
+ *
+ * @Param logDescription Logicky popis obrazku - struktura.
+ */
+/* ----------------------------------------------------------------------------*/
 void printTLoscdes(tLOSCDES logDescription) {
-	fprintf(stdout, "\n------------------------------ Popisovac logicke obrazovky ------------------------------\n\n");
-	fprintf(stdout, "Rozmery obrazku - sirka : %dpx, vyska : %dpx\n",	logDescription.screenWidth, logDescription.screenHeight);
+	fprintf(stderr, "\n------------------------------ Popisovac logicke obrazovky ------------------------------\n\n");
+	fprintf(stderr, "Rozmery obrazku - sirka : %dpx, vyska : %dpx\n",	logDescription.screenWidth, logDescription.screenHeight);
 	printTPacked(logDescription.packedFields);
-	fprintf(stdout,"Index do barvy pozadi : %d\nPomer stran : %d\n",	logDescription.backgroundColorIndex,
+	fprintf(stderr,"Index do barvy pozadi : %d\nPomer stran : %d\n",	logDescription.backgroundColorIndex,
 																						 	logDescription.pixelAspectRatio
 			);
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Tiskne popis obrazku na STDOUT.
+ *
+ * @Param des Struktura obsahujici popis obrazku.
+ */
+/* ----------------------------------------------------------------------------*/
 void printTImageDescription(tImageDescription des) {
-	fprintf(stdout, "\n------------------------------ Lokalni popisovac obrazku --------------------------------\n\n");
-	fprintf(stdout, "Identifikator : 0x%x\nSourdanice  - X  : %d, sourdanice Y : %d\nRozmery - sirka : %dpx, vyska : %dpx\n",	
-																																				des.imageSeparator,
-																																				des.imageLeftPos,
-																																				des.imageTopPos,
-																																				des.imageWidth,
-																																				des.imageHeight
+	fprintf(stderr, "\n------------------------------ Lokalni popisovac obrazku --------------------------------\n\n");
+	fprintf(stderr, "Identifikator : 0x%x\nSourdanice  - X  : %d, sourdanice Y : %d\nRozmery - sirka : %dpx, vyska : %dpx\n",	
+				des.imageSeparator, des.imageLeftPos, des.imageTopPos, des.imageWidth, des.imageHeight
 			);
 	printTPackedImg(des.packedFields);
 }
 
+
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Tiskne rozsireni grafiky na STDOUT.
+ *
+ * @Param ext Popisovac grafickeho rozsireni.
+ */
+/* ----------------------------------------------------------------------------*/
 void printTGraphicControlExt(tGraphicControlExt ext) {
-	fprintf(stdout, "\n------------------------------ Blok Rozsireni rizeni grafiky ----------------------------\n\n");
-	fprintf(stdout, "Identifikace rozsireni : 0x%x, typ : 0x%x, velikost : 0x%x\n",	ext.extIntroducer,
-																												ext.graphicControlLabel,
-																												ext.blockSize
+	fprintf(stderr, "\n------------------------------ Blok Rozsireni rizeni grafiky ----------------------------\n\n");
+	fprintf(stderr, "Identifikace rozsireni : 0x%x, typ : 0x%x, velikost : 0x%x\n",	
+			ext.extIntroducer, ext.graphicControlLabel, ext.blockSize
 			);
 	printTPackedEx(ext.packedFields);
-	fprintf(stdout, "Prodleva v setinach sekundy : %d\nIndex pruhlednosti barev : %d\nTerminator, ukonceni : 0x%x\n",	
+	fprintf(stderr, "Prodleva v setinach sekundy : %d\nIndex pruhlednosti barev : %d\nTerminator, ukonceni : 0x%x\n",	
 			ext.delayTime,	ext.transparentColorIndex,	ext.blockTerminator
 			);
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Tiskne hlavicku souboru GIF. Tedy bud GIF87a nebo GIF89a.
+ *
+ * @Param head Struktura  obsahujici prvnich 6 bitu souboru gif.
+ */
+/* ----------------------------------------------------------------------------*/
 void printTHeader(tHEADER head) {
-	fprintf(stdout, "\n------------------------------ Hlavicka -------------------------------------------------\n\n");
-	fprintf(stdout, "Verze obrazku : %c%c%c%c%c%c\n",	head.signature[0], head.signature[1], head.signature[2],
-																	head.version[0], head.version[1], head.version[2]		);
+	fprintf(stderr, "\n------------------------------ Hlavicka -------------------------------------------------\n\n");
+	fprintf(stderr, "Verze obrazku : %c%c%c%c%c%c\n",	head.signature[0], head.signature[1], head.signature[2],
+																	head.version[0], head.version[1], head.version[2]		
+			);
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Tiskne obsah rozsireni komentare na STDOUT.
+ *
+ * @Param ext Struktura komenater obrazku.
+ */
+/* ----------------------------------------------------------------------------*/
 void printTCommentExt(tCommentExt ext) {
-	fprintf(stdout, "\n------------------------------Struktura tCommentExt ---------------------------------\n\n");
-	fprintf(stdout, "extIntroducer=0x%x, commentLabel=0x%x, commentData=%s, blockTerminator=0x%x\n",	ext.extIntroducer,
-																																		ext.commentLabel,
-																																		ext.commentData.c_str(),
-																																		ext.blockTerminator
+	fprintf(stderr, "\n------------------------------Struktura tCommentExt ---------------------------------\n\n");
+	fprintf(stderr, "extIntroducer=0x%x, commentLabel=0x%x, commentData=%s, blockTerminator=0x%x\n",
+			ext.extIntroducer, ext.commentLabel, ext.commentData.c_str(),	ext.blockTerminator
 			);
-
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Tiskne obsah struktury popisujici textove rozsireni na STDOUT.
+ *
+ * @Param ext Struktura rozsireneho textu.
+ */
+/* ----------------------------------------------------------------------------*/
 void printTPlainTextExt(tPlainTextExt ext) {
-	fprintf(stdout, "\n------------------------------Struktura tPlainTextExt ---------------------------------\n\n");
-	fprintf(stdout, "extIntroducer=0x%x, extLabel=0x%x, blockSize=%d, textGridLeftPos=%d, textGridTopPos=%d,	textGridWidth=%d, textGridHeight=%d, characterCellWidth=%d, characterCellHeight=%d, textForColorIndex=%d, textBackgroundColorIndex=%d, plainTextData=%s, blockTerminator=0x%x\n",	ext.extIntroducer,
-																															ext.plainTextLabel,
-																															ext.blockSize,
-																															ext.textGridLeftPos,
-																															ext.textGridTopPos,
-																															ext.textGridWidth,
-																															ext.textGridHeight,
-																															ext.characterCellWidth,
-																															ext.characterCellHeight,
-																															ext.textForegroundColorIndex,
-																															ext.textBackgroundColorIndex,
-																															ext.plainTextData.c_str(),
-																															ext.blockTerminator
+	fprintf(stderr, "\n------------------------------Struktura tPlainTextExt ---------------------------------\n\n");
+	fprintf(stderr, "extIntroducer=0x%x, extLabel=0x%x, blockSize=%d, textGridLeftPos=%d, textGridTopPos=%d,	\
+			textGridWidth=%d, textGridHeight=%d, characterCellWidth=%d, characterCellHeight=%d, textForColorIndex=%d, \
+			textBackgroundColorIndex=%d, plainTextData=%s, blockTerminator=0x%x\n",	ext.extIntroducer,
+			ext.plainTextLabel, ext.blockSize, 	ext.textGridLeftPos,	ext.textGridTopPos,ext.textGridWidth,
+			ext.textGridHeight, ext.characterCellWidth, ext.characterCellHeight,	ext.textForegroundColorIndex,
+			ext.textBackgroundColorIndex,	ext.plainTextData.c_str(),	ext.blockTerminator
 			);
-
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Tiskne na standardni chybovy vystup obsah struktury tGIF.
+ *
+ * @Param gif Struktura tGIF jehoooz data se tisknou.
+ */
+/* ----------------------------------------------------------------------------*/
 void printGif(tGIF gif) {
 	printTHeader(gif.header);
 	printTLoscdes(gif.logDescription);
@@ -720,13 +645,27 @@ void printGif(tGIF gif) {
 		printTGraphicControlExt(gif.graphicControlExt);
 	}
 	printTImageDescription(gif.imageDescription);
-	fprintf(stdout, "\n------------------------------ Obecne informace k LZW -----------------------------------\n\n");
-	fprintf(stdout, "Delak LZW kodu : %d\n", gif.sizeLZW);
+	fprintf(stderr, "\n------------------------------ Obecne informace k LZW -----------------------------------\n\n");
+	fprintf(stderr, "Delka LZW kodu : %d\n", gif.sizeLZW);
 }
+
+
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ----------------------------------------------------------------- Pomocne funkce ---------------------//
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Prevod cisla z formatu bigendiab na littleEndian.
+ *
+ * @Param num1 Prvni cislo.
+ * @Param num2 Druhe cislo.
+ *
+ * @Returns   Jedno cislo spojujici obe vstupni cisla.
+ */
+/* ----------------------------------------------------------------------------*/
 unsigned short hexToDec(BYTE num1, BYTE num2) {
 	if(num2 != 0) {																													// pokud druhe cislo neni nulove
 		return (num1 + num2 + 255);																								// posunuti druheho cisla o 8 mist
@@ -736,11 +675,21 @@ unsigned short hexToDec(BYTE num1, BYTE num2) {
 	}
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Kontroluje zda vstupni soubor je typu gif.
+ *
+ * @Param signature[] Pole bajtu obsahujici retezec GIF.
+ * @Param version[] Pole bajtu, ktere by melo obsahovat verzi gifu.
+ *
+ * @Returns   Cislo typu gifu nebo 0 pokud obrazek neni gif.
+ */
+/* ----------------------------------------------------------------------------*/
 //TODO:vyresit kdaz neni gif
 char isGif(BYTE signature[], BYTE version[] ) {
 // kontrola zda je obrazek gif
 	if(signature[0] != 0x47 || signature[1] != 0x49 || signature[2] != 0x46) {										// neni gif
-		fprintf(stdout, "CHYBA: Obrazek neni typu gif nebo je poskozen.");
+		fprintf(stderr, "CHYBA: Obrazek neni typu gif nebo je poskozen.");
 		return 0;
 	}
 // kontrola obrazek verze
@@ -751,11 +700,22 @@ char isGif(BYTE signature[], BYTE version[] ) {
 		return 87;
 	}
 	else {																																// je to gif lae jine verze?
-		fprintf(stdout, "CHYBA: Obrazek neni verze 87a ani 89a nebo je poskozen.");
+		fprintf(stderr, "CHYBA: Obrazek neni verze 87a ani 89a nebo je poskozen.");
 		return 0;
 	}
-	return 1;
 }
+
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Prevod retezce nul a jednicek na cislo v dekadickem tvaru, 
+ *            vezme se pocet znaku podle hodnoty bit.
+ *
+ * @Param str Vstupni retezec 1 a 0, ktery se bude prevadet na cislo.
+ * @Param bit Pocet znaku, ktere se budou prevadet na cisla.
+ *
+ * @Returns   Cislo v dekadickem tvaru.
+ */
+/* ----------------------------------------------------------------------------*/
 uint32_t bin2dec(string str, uint8_t bit) {
 	uint16_t mask[] = {1,2,4,8,16,32,64,128,256,512,1024, 2048};
 	uint16_t num = 0;
@@ -769,6 +729,7 @@ uint32_t bin2dec(string str, uint8_t bit) {
 	}
 	return num;
 }
+
 void sortData() {
 	int32_t i,j;
 	vector<int32_t> table1;
@@ -792,6 +753,15 @@ void sortData() {
 	}
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Prevadi vektor cisel na retezec cisel.
+ *
+ * @Param vect Vektor cisel.
+ *
+ * @Returns   Retezec cisel.
+ */
+/* ----------------------------------------------------------------------------*/
 string vector2Str(vector<uint16_t> vect) {
 	string str = "";
 	for(uint32_t i = 0; i < vect.size(); i++) {
@@ -800,9 +770,54 @@ string vector2Str(vector<uint16_t> vect) {
 	return str;
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Prevadi cislo na retzec.
+ *
+ * @Param num Cislo pro prevod na retezec.
+ *
+ * @Returns   Csilo prevedene na retezec.
+ */
+/* ----------------------------------------------------------------------------*/
 string int2Str(uint16_t num) {
 	stringstream ss;
 	ss << num;																															// prevod cisla na retezec
 	return ss.str();
+}
+
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Prevod cisla na retezec v binarni podobe.
+ *
+ * @Param num Cis;ov dekadickem formatu.
+ *
+ * @Returns   Retezec obsahujici cislo v binarni podobe
+ */
+/* ----------------------------------------------------------------------------*/
+string dec2bin(uint16_t num) {
+	string str;
+	uint8_t i = 0;
+	uint8_t pom = 0;
+	bool tr = true;
+	uint8_t count = 0;
+	while(tr) {
+		pom = num>>1;
+		i = num-(pom<<1);
+		if(i == 0) {
+		str.insert(0,"0" );
+		}
+		else {
+		str.insert(0,"1" );
+		}
+		if(pom ==0) {
+			tr = false;
+		}
+		num = pom;
+		count++;
+	}
+	for(;count<8;count++) {
+		str.insert(0,"0" );
+	}
+	return str;
 }
 
