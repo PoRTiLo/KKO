@@ -1,3 +1,24 @@
+/**
+ *      @file  gif2bmp.h
+ *      @brief  V jazyce C/C++ naimplementovana knihovna pro prevod souboru 
+ *              grafickeho formatu GIF (Graphics Interchange Format) na soubor 
+ *              grafickeho formatu BMP (Microsoft Windows Bitmap). Pro soubor ve 
+ *              formatu GIF se predpoklada jeho zakodovani pomoci metody LZW. 
+ *              Vystupni soubor ve formatu BMP je ulozen v nezakodovane forme.
+ *
+ * Detailed description starts here.
+ *
+ *     @author  Bc. Jaroslav Sendler (xsendl00), xsendl00@stud.fit.vutbr.cz
+ *
+ *   @internal
+ *     Created  03/08/2012
+ *     Company  FIT-VUT, Brno
+ *   Copyright  Copyright (c) 2012, Bc. Jaroslav Sendler
+ *
+ * =====================================================================================
+ */
+
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -135,8 +156,10 @@ typedef struct {
 	vector<tGlobalColor> globalColor;
 	tImageDescription imageDescription;
 	tGraphicControlExt graphicControlExt;
-	int16_t sizeLZW;
+	uint16_t sizeLZW;
 	vector<WORD> data;
+	int8_t ok;																														// 1 nenio obarzek obarzek
+	int64_t size;
 } tGIF;
 
 typedef struct {
@@ -165,21 +188,31 @@ typedef struct {
 	tBmpHeader header;
 	tBmpInfoHeader infoHeader;
 	vector<WORD> data;
+	int8_t ok;
 } tBMP;
 
 int32_t gif2bmp(tGIF2BMP *gif2bmp, FILE *inputFile, FILE *outputFile);
 // ------------------ Pomocne funkce ----------------------------------
-vector<int32_t> openGif(FILE *inputFile);
-char isGif(BYTE type[], BYTE version[]);
+vector<int32_t> openGif(FILE *inputFile, int64_t &size);
+int8_t isGif(BYTE type[], BYTE version[]);
 unsigned short hexToDec(BYTE num1, BYTE num2);
-void sortData();
+vector<uint16_t> sortData(tGIF gif);
+vector<WORD> decodeLZW(string subBlock, tGIF gif);
+string dec2bin(WORD num);
+DWORD bin2dec(string, BYTE bit);
+string int2Str(WORD num);
+string vector2Str(vector<WORD> vect);
+void printGif(tGIF gif);
+tBMP createBmp(tGIF gif, FILE *outputFile);
+vector<WORD> bmpData(tGIF gif);
 // ------------------  Funkce plnici struktury ------------------------
 vector<tGlobalColor> pullGlobalColor(vector<int32_t> data, char pixelBits);
 tLOSCDES pullLogDesc(vector<int32_t> data);
 tHEADER pullHead(vector<int32_t> data);
-tGIF pullGif(vector<int32_t> data);
+tGIF pullGif(vector<int32_t> data, int64_t size);
 tGraphicControlExt pullGraphicControlExt(vector<int32_t> data);
 tImageDescription pullImageDescription(vector<int32_t> data);
+tBMP pullBmp(tGIF gif);
 // ------------------- Pomocne vypisove funkce ------------------------
 void printTPackedEx(tPACKEDEX packedFields);
 void printTLoscdes(tLOSCDES logDescription);
@@ -191,12 +224,3 @@ void printTGraphicControlExt(tGraphicControlExt ext);
 void printTHeader(tHEADER head);
 void printTCommentExt(tCommentExt ext);
 void printTPlainTextExt(tPlainTextExt ext);
-vector<WORD> decodeLZW(string subBlock, tGIF gif);
-string dec2bin(WORD num);
-DWORD bin2dec(string, BYTE bit);
-string int2Str(WORD num);
-string vector2Str(vector<WORD> vect);
-void printGif(tGIF gif);
-BYTE createBmp(tGIF gif, FILE *outputFile);
-tBMP pullBmp(tGIF gif);
-vector<WORD> bmpData(tGIF gif);

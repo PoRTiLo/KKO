@@ -1,50 +1,100 @@
 /**
- * @file gif2bmp.c
- * @Synopsis  
- * @author Bc. Jaroslav Sendler <xsendl00ATstud.fit.vutbr.cz>
- * @version 0.1
- * @date 2012-02-23
+ *       @file  gif2bmp.c
+ *      @brief  V jazyce C/C++ naimplementovana knihovna pro prevod souboru 
+ *              grafickeho formatu GIF (Graphics Interchange Format) na soubor 
+ *              grafickeho formatu BMP (Microsoft Windows Bitmap). Pro soubor ve 
+ *              formatu GIF se predpoklada jeho zakodovani pomoci metody LZW. 
+ *              Vystupni soubor ve formatu BMP je ulozen v nezakodovane forme.
+ *
+ * Detailed description starts here.
+ *
+ *     @author  Bc. Jaroslav Sendler (xsendl00), xsendl00@stud.fit.vutbr.cz
+ *
+ *   @internal
+ *     Created  03/08/2012
+ *     Company  FIT-VUT, Brno
+ *   Copyright  Copyright (c) 2012, Bc. Jaroslav Sendler
+ *
+ * =====================================================================================
  */
+
 #include "gif2bmp.h"
 
-tGIF2BMP gif2Bmp;
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Rozhrani mezi programme a knihovnou pro prevod z GIF do BMP.
+ *
+ * @Param gif2bmp Struktura obsahujici informace o vstupnim a vystupnim soubrou.
+ * @Param inputFile Vstupbni soubor.
+ * @Param outputFile Vystupni soubor.
+ *
+ * @Returns   0 prevod se povdel, jinak -1
+ */
+/* ----------------------------------------------------------------------------*/
 int32_t gif2bmp(tGIF2BMP *gif2bmp, FILE *inputFile, FILE *outputFile) {
 
 	tGIF gif;
 	tBMP bmp;
-	createBmp(pullGif(openGif(inputFile)), outputFile);
+	//createBmp(pullGif(openGif(inputFile)), outputFile);
+	int64_t sizeGif = 0;
+	vector<int32_t> vec(openGif(inputFile, sizeGif));
+	gif = pullGif(vec, sizeGif);
+	if(gif.ok == -1) {
+		return -1;
+	}
 	//tisk dat do bmp souboru
+	bmp = createBmp(gif, outputFile);
+	if(bmp.ok == -1) {
+		return -1;
+	}
+	gif2bmp->bmpSize = bmp.header.size;
+	gif2bmp->gifSize = sizeGif;
 	return 0;
 }
 
 
-
+/* --------------------------------------------------------------------------*/
 /**
- * @brief   Otevre obrazek a nacte binarni data do pole.
- * @param   
- * @return  
+ * @Synopsis  Otevre vstupni obrazek a nacte vsechna data
+ *
+ * @Param inputFile Vstupni soubor znehoz budou ctena data.
+ * @Param size Velikost vstupniho souboru.
+ *
+ * @Returns   Nactena data z obrazku.
  */
-vector<int32_t> openGif(FILE *inputFile) {
-
+/* ----------------------------------------------------------------------------*/
+vector<int32_t> openGif(FILE *inputFile, int64_t &size) {
 	// zjisteni velikosti souboru
 	fseek(inputFile, 0L, SEEK_END);																								// nastaveni ukazatele v souboru na konec
-	gif2Bmp.gifSize = ftell(inputFile);																							// ulozeni velikosti souboru do struktury
+	size = ftell(inputFile);																										// ulozeni velikosti souboru do struktury
 	fseek(inputFile, 0L, SEEK_SET);																								// nastaveni ukazatele v souboru n azacatek
 
 	// nacteni obrazku do vectoru
 	vector<int32_t> data;																											// kontejner obsahujici nactena data z obrazku
 	int32_t ch = 0;
-	while((ch = fgetc(inputFile))!=EOF) {																						// nacitam po znacich dokud neni konec souboru
+	while((ch = fgetc(inputFile)) != EOF) {																					// nacitam po znacich dokud neni konec souboru
 		data.push_back(ch);
 	}
 
 	return data;
 }
 
-uint8_t createBmp(tGIF gif, FILE *outputFile) {
-	uint8_t result = 0;
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  VYtvori strukturu tBMP z indexu do globalni tabulky barev z 
+ *            obrazku gif. Nasledne vytvoreny obrazek vytsikne do souboru 
+ *            outputFile.
+ *
+ * @Param gif Plna strktura tGIF, pripravena na prevod na BMP.
+ * @Param outputFile Ukazatel na vystupni soubor.
+ *
+ * @Returns   Naplnena struktura tBMP.
+ */
+/* ----------------------------------------------------------------------------*/
+tBMP createBmp(tGIF gif, FILE *outputFile) {
+	//TODO:kontrola zda ze povedlo zapsat
 	tBMP bmp = pullBmp(gif);
 	uint32_t pom32[1];
 	uint16_t pom16[1];
@@ -81,16 +131,31 @@ uint8_t createBmp(tGIF gif, FILE *outputFile) {
 	pom32[0] = (bmp.infoHeader.significantColors);
 	fwrite(pom32, sizeof(uint32_t),1, outputFile);
 
-	fprintf(stderr, "\nsize ........%lu\n\n",bmp.data.size());
+	uint8_t pom[1];
 	for(uint32_t i = 0; i< bmp.data.size();i++) {
-		uint16_t pom[1];
 		pom[0]= bmp.data[i];
 		fwrite(pom, sizeof(uint8_t),1, outputFile);
 	}
-	return result;
+	return bmp;
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Vytvari surova zdrojova data pro obrazek formnatu bmp. Nejprve 
+ *            pripadne prevede na neprokladany format, priradi indexu v 
+ *            tabulce barvy, nasledne prevede data do poradi kdyz se zacina 
+ *            v levem dolnim rohu.
+ *
+ * @Param gif Struktura obrazku gif, obsahujici globalni tabulku barev a data.
+ *
+ * @Returns   Pretransformovany vektor dat, ktery se muzu rovnou tisknout 
+ *            do souboru.
+ */
+/* ----------------------------------------------------------------------------*/
 vector<uint16_t> bmpData(tGIF gif) {
+	if(gif.imageDescription.packedFields.int32_terleaved == 1) {														// 1 pokud je obrazek prokladan
+		gif.data = sortData(gif);																									// prevod z prokladaneho formatu na normlani posloupnost
+	}
 	vector<uint16_t> data;
 	for(uint32_t i = 0; i < gif.data.size(); i++) {																			// tvorba dat, prevod indexu do tabulky barev na barvy
 		data.push_back(gif.globalColor[gif.data[i]].blue);																	// pridani modre barvy
@@ -120,12 +185,25 @@ vector<uint16_t> bmpData(tGIF gif) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ----------------------------------------------------------------- Plneni struktur --------------------//
 // ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Naplneni struktury pro obrazek BMP.
+ *            Naplneni hlavicky, info hlavicky a dat. Je pouzita 24bitova 
+ *            hloubka barev.
+ *
+ * @Param gif 
+ *
+ * @Returns   Struktura obrazku bmp. Je plna dat, pripravena na tisk.
+ */
+/* ----------------------------------------------------------------------------*/
 tBMP pullBmp(tGIF gif) {
 	tBMP bmp;
-	bmp.data = bmpData(gif);
+	bmp.ok = 0;
+	bmp.data = bmpData(gif);																										// transformace indexu do globalni tabulky barev na data pro bmp
 	tBmpHeader header;
 	header.fileType = 0x4D42;																										// zacatek souboru BM
-	header.size = 14 + 40 + bmp.data.size() ;																					// velikost souboru, hlavicka 14, info hlavicka 40 a data
+	header.size = 14 + 40 + bmp.data.size();																					// velikost souboru, hlavicka 14, info hlavicka 40 a data
 	header.reserved1 = 0x00000000;																								// rezervovane misto
 	header.reserved2 = 0x00000000;																								// rezervovane misto
 	header.dataOffset = 0x28;																										// pozice kde zacinaji uzitecna data
@@ -146,10 +224,26 @@ tBMP pullBmp(tGIF gif) {
 	return bmp;
 }
 
-tGIF pullGif(vector<int32_t> data) {
-
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Naplneni struktury tGIF reprezentujici cely obrazek gif. 
+ *            Vyziva nekoliak fci pro pleneni jednotlivych struktur. 
+ *            Rozebere a zhodnoti zda se jedna o obrazek atd..
+ *
+ * @Param data Data nactena ze souboru
+ *
+ * @Returns   Naplnena struktura tGIF daty
+ */
+/* ----------------------------------------------------------------------------*/
+tGIF pullGif(vector<int32_t> data, int64_t size) {
 	tGIF gif;																															// struktura obsahujici vsechny informace o obrazku
+	gif.size = size;
 	gif.header = pullHead(data);																									// naplneni struktury hlavicky 
+	gif.ok = 0;
+	if(isGif(gif.header.signature, gif.header.version ) == -1) {														// kontrola zdali je spravny soubor
+		gif.ok = -1;
+		return gif;
+	}
 	data.erase(data.begin(), data.begin() + sizeof(gif.header));														// odebrani dat obsazenych v hlavicce
 	gif.logDescription = pullLogDesc(data);																					// naplneni struktury Lokalni popisova cobrazku
 	data.erase(data.begin(), data.begin() + sizeof(gif.logDescription) - sizeof(gif.logDescription.packedFields) + 1);	// mazani pouzitych dat
@@ -162,24 +256,32 @@ tGIF pullGif(vector<int32_t> data) {
 // vyhledani urciteho bloku, bud samotnych bunarnich dat obrazku nebo nektereho rozsireni
 	uint32_t pozicion = 0;																											// pozice prochazeni v datech
 	vector<uint16_t> subBlock;																										// vector obsahujici binarni data v LZW kode
-	while(pozicion < gif2Bmp.gifSize) {
+	while(pozicion < gif.size) {
 // rozsireni
-	fprintf(stdout, "tady, hex%x\n", data[pozicion]);
 		if(data[pozicion] == 0x21) {
 			pozicion++;
 			if(data[pozicion] == 0xF9) {																							// rozsireni rizeni grafiky
+				fprintf(stderr,"rozsireni F9\n");														// TODO: zpracova lokalni tabulku barev
 				gif.graphicControlExt = pullGraphicControlExt(data);
 				data.erase(data.begin(), data.begin() + (sizeof(gif.graphicControlExt) - sizeof(gif.graphicControlExt.packedFields) ));	// mazani pouzitych dat
 				pozicion = 0;																											// nastaveni pozice na zacatek
 			}
 			else if(data[pozicion] == 0xFE) {																					// rozsireni komentare
+				fprintf(stderr,"rozsireni FE\n");														// TODO: zpracova lokalni tabulku barev
+				exit(0);
 			}
 			else if(data[pozicion] == 0xFF) {																					// rozsireni pro aplikaci
+				fprintf(stderr,"rozsireni FF\n");														// TODO: zpracova lokalni tabulku barev
+				exit(0);
 			}
 			else if(data[pozicion] == 0x01) {																					// rozsireni standardniho textu
+				fprintf(stderr,"rozsirebui 01\n");														// TODO: zpracova lokalni tabulku barev
+				exit(0);
 			}
 			else {
 
+				fprintf(stderr,"odivne nic, zadne rozsireni\n");														// TODO: zpracova lokalni tabulku barev
+					exit(0);
 			}
 		}
 		//TODO:poresit kdz jsou obrazky z vice bloku, asi maji i vice lokalnich popisovacu, nevim
@@ -192,9 +294,9 @@ tGIF pullGif(vector<int32_t> data) {
 			}
 // cteni binarnich dat v LZW kodu
 			gif.sizeLZW = data[pozicion++];																						// velikost minamilniho kodu LZW
-			int32_t sizeBlock = data[pozicion++];																				// velikost bloku dat
+			uint32_t sizeBlock = data[pozicion++];																				// velikost bloku dat
 			bool endBlock = false;																									// ukonceni cteni, podle delky a kodu 0x00
-			int16_t i = 1;																												// aktualne nacteny znak
+			uint32_t i = 1;																												// aktualne nacteny znak
 			while(endBlock != true) {
 				if(i <= sizeBlock) {																									// ctu jeden blok
 					subBlock.push_back(data[pozicion++]);																		// vlozeni dat do subBloku
@@ -223,6 +325,16 @@ tGIF pullGif(vector<int32_t> data) {
 }
 
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Implementuje algoritmus na rozkodovani LZW.
+ *
+ * @Param subBlock posloupnost 1 a 0 reprezentujici bity obrazkovych dat.
+ * @Param gif Naplnena struktura tGIF.
+ *
+ * @Returns   Rozkodovana posloupnost indexu do globalni tabulky barev.
+ */
+/* ----------------------------------------------------------------------------*/
 vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
 
 	// inicializace slovniku
@@ -256,7 +368,7 @@ vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
 	vector<uint16_t> old;																											// vektor znaku predeslych
 	uint8_t last = 0;																													// posldne nacteny bit
 	if(result > dict.size()) {
-		fprintf(stdout, "DIVNE PORESIT, jako prvni prislo moc velke cislo, ma byt mensi nez velikost slovniku, coy je %lu",dict.size()); //TODO
+		fprintf(stdout, "DIVNE PORESIT, jako prvni prislo moc velke cislo, ma byt mensi nez velikost slovniku, coy je %u",dict.size()); //TODO
 		exit(0);
 	}
 	old.push_back(dict[result][0]);																								// uchovani nactenych dat daneho indexu slovniku
@@ -268,7 +380,7 @@ vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
 	uint16_t mask[] = {0,1,3,7,15,31,63,127,255,511, 1023, 2047, 4095, 8191};										// maska slouzici k ziskani spravneho cisla
 	uint16_t sizeMax = mask[maskI];																								// maximalni velikost aktualniho slovniku
 	while(0 != subBlock.size()) {																									// dokud neprectu cely blok
-		fprintf(stdout, "krok:%d, vstup:%d, [%d]:  \n",pos-dictSize+1, result, pos-1);
+		//fprintf(stdout, "krok:%d, vstup:%d, [%d]:  \n",pos-dictSize+1, result, pos-1);
 		if(lzwBit >= 13) {																											// kontrola zda pocet nacitanych bitu neni vetsi nez 13, max12
 			lzwBit = 12;																												// snizeni bitu na maximalni hodnotu, 12
 		}
@@ -306,7 +418,7 @@ vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
 	// zpracuji prvni znak, ktery pujde do slovniku
 			last = 0;																													// posledne nacteny bit je prazdny
 			if(result > dict.size()) {
-				fprintf(stdout, "DIVNE PORESIT, jako prvni prislo moc velke cislo, ma byt mensi nez velikost slovniku, coy je %lu",dict.size());
+				fprintf(stdout, "DIVNE PORESIT, jako prvni prislo moc velke cislo, ma byt mensi nez velikost slovniku, coy je %u",dict.size());
 				exit(0);
 			}
 			old.clear();
@@ -356,10 +468,15 @@ vector<uint16_t> decodeLZW(string subBlock, tGIF gif) {
 	return output;
 }
 
-
+/* --------------------------------------------------------------------------*/
 /**
- * Naplneni hlavicky daty
-*/
+ * @Synopsis  Naplneni struktuty reprezentujici hlavikcu obrazku GIF.
+ *
+ * @Param data Vektor obsahujicic data nactena z obrazku.
+ *
+ * @Returns   Naplnena struktura tHEASER.
+ */
+/* ----------------------------------------------------------------------------*/
 tHEADER pullHead(vector<int32_t> data) {
 	tHEADER header;																													// struktura obsahujici hlavicku gifu
 	// naplneni hlavicky
@@ -370,19 +487,23 @@ tHEADER pullHead(vector<int32_t> data) {
 	header.version[1] = data[4];																									// 0x39 9 nebo 0x37 7
 	header.version[2] = data[5];																									// 0x61 a
 
-	if(isGif(header.signature, header.version ) == 0) {																	// kontrola zdali je spravny soubor
-		fprintf(stdout, "NENI OBRAZEK< DODELAT, uzavreni vsech souboru a vypis hlasky\n");
-		exit(0);																															//TODO: poresit kdyz neni obrazek
-		//return ;0;
-	}
 	return header;
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis Naplneni struktury reprezentujici Popisovac logicke obrazovky.
+ *
+ * @Param data Vektor obsahujici data nactena z obrazku.
+ *
+ * @Returns   Naplnena struktura tLOSCDES
+ */
+/* ----------------------------------------------------------------------------*/
 tLOSCDES pullLogDesc(vector<int32_t> data) {
 	tLOSCDES logDescription;																										// struktura obsahujici popisovac logicke obrazovky
 	logDescription.screenWidth = hexToDec(data[0], data[1]);																// sirka obrazku v pixelech
 	logDescription.screenHeight = hexToDec(data[2], data[3]);															// vyska obrazku v pixelech
-//		fprintf(stderr, " end :%d, %d........0x%x,,,0x%x\n", logDescription.screenWidth, logDescription.screenHeight, data[0], data[1]);
+		fprintf(stderr, " end :%d, %d........0x%x,,,0x%x\n", logDescription.screenWidth, logDescription.screenHeight, data[0], data[1]);
 	logDescription.packedFields.globalColorMap = (data[4] & 128) >> 7;												// 7 bit, 1 =tab. existuje, 0= neexistuje
 	logDescription.packedFields.colorResolutionBits = ((data[4] & 112)  >> 4) + 1;								// 4-6bit, barevna rozlisovaci hodnpta +1
 	logDescription.packedFields.reserved = (data[4] & 8) >> 3;															// 3bit, navesti trideni tabulky barev
@@ -393,11 +514,21 @@ tLOSCDES pullLogDesc(vector<int32_t> data) {
 	return logDescription;
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Naplneni struktury Globalni tabulky barev.
+ *
+ * @Param data Vektor obsahujici data nactena z obrazku.
+ * @Param pixelBits Velikost globalni tabulky barev.
+ *
+ * @Returns   Vektor obsahujici struktury tGlobalColor.
+ */
+/* ----------------------------------------------------------------------------*/
 vector<tGlobalColor> pullGlobalColor(vector<int32_t> data, char pixelBits) {
 // nacteni dat do globalni tabulky barev
 	uint16_t countIndexTable = 1 << pixelBits;																				// velikost globalni tabulkz barev max 255
 	vector<tGlobalColor> aGColor;																									// vektor struktur RGB
-	tGlobalColor globalColor;																										// pomocna struktura RGB
+	tGlobalColor globalColor = {0,0,0};																							// pomocna struktura RGB
 	uint16_t pozicion = 0;
 	for(uint16_t i = 0; i < countIndexTable; i++) {
 		globalColor.red = data[pozicion++];																						// cervena barva
@@ -409,6 +540,15 @@ vector<tGlobalColor> pullGlobalColor(vector<int32_t> data, char pixelBits) {
 	return aGColor;
 }
 
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Naplneni struktury Rozsireni rizeni grafiky.
+ *
+ * @Param data Vektor obsahujici data nactena z obrazku.
+ *
+ * @Returns   Naplnena struktura pgraphicExt.
+ */
+/* ----------------------------------------------------------------------------*/
 tGraphicControlExt pullGraphicControlExt(vector<int32_t> data) {
 	tGraphicControlExt graphicExt;																								// struktura grafickeho rozsireni
 	graphicExt.extIntroducer = data[0];																							// oddelovac 0x21
@@ -424,6 +564,16 @@ tGraphicControlExt pullGraphicControlExt(vector<int32_t> data) {
 
 	return graphicExt;
 }
+
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Naplneni struktury reprezentujici lokalni popisovac predlohy.
+ *
+ * @Param data Vektor obsahujici vstupni data.
+ *
+ * @Returns    Naplnena struktura tImageDescription daty z obrazku.
+ */
+/* ----------------------------------------------------------------------------*/
 tImageDescription pullImageDescription(vector<int32_t> data) {
 	tImageDescription imageDesc;																									// struktura lokalniho popisovace obrazku
 	imageDesc.imageSeparator = data[0];																							// oddelovac 0x2c
@@ -667,11 +817,14 @@ void printGif(tGIF gif) {
  */
 /* ----------------------------------------------------------------------------*/
 unsigned short hexToDec(BYTE num1, BYTE num2) {
+	fprintf(stderr, "velikost n1 = 0x%x, n2=0x%x\n", num1, num2);
 	if(num2 != 0) {																													// pokud druhe cislo neni nulove
-		return (num1 + num2 + 255);																								// posunuti druheho cisla o 8 mist
+	fprintf(stderr, "n = %d\n", num1+(num2<<8));
+		return (num1 + (num2 << 8));																								// posunuti druheho cisla o 8 mist
 	}
 	else {
-		return (num1 + num2);																										// secteni dvou cisel
+	fprintf(stderr, "n = %d\n", num1);
+		return (num1);																										// secteni dvou cisel
 	}
 }
 
@@ -685,12 +838,11 @@ unsigned short hexToDec(BYTE num1, BYTE num2) {
  * @Returns   Cislo typu gifu nebo 0 pokud obrazek neni gif.
  */
 /* ----------------------------------------------------------------------------*/
-//TODO:vyresit kdaz neni gif
-char isGif(BYTE signature[], BYTE version[] ) {
+int8_t isGif(BYTE signature[], BYTE version[] ) {
 // kontrola zda je obrazek gif
 	if(signature[0] != 0x47 || signature[1] != 0x49 || signature[2] != 0x46) {										// neni gif
-		fprintf(stderr, "CHYBA: Obrazek neni typu gif nebo je poskozen.");
-		return 0;
+		fprintf(stderr, "\nCHYBA: Obrazek neni typu gif nebo je poskozen.");
+		return -1;
 	}
 // kontrola obrazek verze
 	if(version[0] == 0x38 && version[1] == 0x39 && version[2] == 0x61) {												// typ 89a
@@ -700,8 +852,8 @@ char isGif(BYTE signature[], BYTE version[] ) {
 		return 87;
 	}
 	else {																																// je to gif lae jine verze?
-		fprintf(stderr, "CHYBA: Obrazek neni verze 87a ani 89a nebo je poskozen.");
-		return 0;
+		fprintf(stderr, "\nCHYBA: Obrazek neni verze 87a ani 89a nebo je poskozen.");
+		return -1;
 	}
 }
 
@@ -730,27 +882,57 @@ uint32_t bin2dec(string str, uint8_t bit) {
 	return num;
 }
 
-void sortData() {
-	int32_t i,j;
-	vector<int32_t> table1;
-	vector<int32_t> table2;
-	int32_t imageHeight = 16;
-	for(i = 0; i <imageHeight; i++) {
-		table1.push_back(i);
+
+/* --------------------------------------------------------------------------*/
+/**
+ * @Synopsis  Prevadi prokladane ulozeni dat na normalni. Nejprve jsou ulozeny
+ *            vsechny sude radky a pak liche. Kazdy nasledujici pruchod 
+ *            obrazkem uklada vice radku nez pruchod predchozi.
+ *
+ * @Param gif Obrazek gif, obsahujici prokladana data, sirku a vysku obrazku.
+ *
+ * @Returns   Preformatovana prokladana data na normalni posloupnost.
+ */
+/* ----------------------------------------------------------------------------*/
+vector<uint16_t> sortData(tGIF gif) {
+	uint32_t i,j;
+	vector<uint16_t> table2;
+	uint32_t width = gif.logDescription.screenWidth;
+	uint32_t size = gif.logDescription.screenHeight * gif.logDescription.screenWidth;
+	for(i = 0; i < size; i++) {
+		table2.push_back(0);
 	}
 	j = 0;
-	for(i = 0; i < imageHeight; i += 8, j++) {
-		table2[i] = table1[j];
+	uint32_t v,p;
+	for(i = 0; i < size; i += (8*width), j += width) {																		// interlace pass 1
+		v = i;
+		p = j;
+		for(uint32_t k = 0; k < width; k++, v++, p++) {
+			table2[v] = gif.data[p];
+		}
 	}
-	for(i = 4; i < imageHeight; i += 8, j++) {
-		table2[i] = table1[j];
+	for(i = (4*width); i < size; i += (8*width), j+=width) {																// interlace pass 2
+		v = i;
+		p = j;
+		for(uint32_t k = 0; k < width; k++, v++, p++) {
+			table2[v] = gif.data[p];
+		}
 	}
-	for(i = 2; i < imageHeight; i += 4, j++) {
-		table2[i] = table1[j];
+	for(i = (2*width); i < size; i += (4*width), j+= width) {															// interlace pass 3
+		v = i;
+		p = j;
+		for(uint32_t k = 0; k < width; k++, v++, p++) {
+			table2[v] = gif.data[p];
+		}
 	}
-	for(i = 1; i < imageHeight; i += 2, j++) {
-		table2[i] = table1[j];
+	for(i = (width*1); i < size; i += (2*width), j+= width) {															// interlace pass 4
+		v = i;
+		p = j;
+		for(uint32_t k = 0; k < width; k++, v++, p++) {
+			table2[v] = gif.data[p];
+		}
 	}
+	return table2;
 }
 
 /* --------------------------------------------------------------------------*/
